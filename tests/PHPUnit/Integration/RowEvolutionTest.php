@@ -16,7 +16,6 @@ class Test_Piwik_Integration_RowEvolution extends IntegrationTestCase
     /**
      * @dataProvider getApiForTesting
      * @group        Integration
-     * @group        RowEvolution
      */
     public function testApi($api, $params)
     {
@@ -27,7 +26,7 @@ class Test_Piwik_Integration_RowEvolution extends IntegrationTestCase
     {
         $idSite = self::$fixture->idSite;
         $idSite2 = self::$fixture->idSite2;
-        $today = self::$fixture->today;
+        $dateTime = self::$fixture->dateTime;
         $keywords = self::$fixture->keywords;
 
         $return = array();
@@ -35,11 +34,11 @@ class Test_Piwik_Integration_RowEvolution extends IntegrationTestCase
         $config = array(
             'testSuffix'             => '_referrer1',
             'idSite'                 => $idSite,
-            'date'                   => $today,
+            'date'                   => $dateTime,
             'otherRequestParameters' => array(
                 'date'      => '2010-02-06,2010-03-06',
                 'period'    => 'day',
-                'apiModule' => 'Referers',
+                'apiModule' => 'Referrers',
                 'apiAction' => 'getWebsites',
                 'label'     => 'www.referrer2.com',
                 'expanded'  => 0
@@ -139,11 +138,11 @@ class Test_Piwik_Integration_RowEvolution extends IntegrationTestCase
             'testSuffix'             => '_multipleDates_lastNoData',
             'periods'                => 'month',
             'idSite'                 => $idSite,
-            'date'                   => $today,
+            'date'                   => $dateTime,
             'otherRequestParameters' => array(
                 'date'      => '2010-02-01,2010-04-08',
                 'period'    => 'month',
-                'apiModule' => 'Referers',
+                'apiModule' => 'Referrers',
                 'apiAction' => 'getKeywords',
                 // no label
             )
@@ -154,7 +153,7 @@ class Test_Piwik_Integration_RowEvolution extends IntegrationTestCase
             'testSuffix'             => '_processedRowLabel',
             'periods'                => 'day',
             'idSite'                 => $idSite2,
-            'date'                   => $today,
+            'date'                   => $dateTime,
             'otherRequestParameters' => array(
                 'date'      => '2010-03-01,2010-03-06',
                 'period'    => 'month',
@@ -169,7 +168,7 @@ class Test_Piwik_Integration_RowEvolution extends IntegrationTestCase
             'testSuffix'             => '_mobileDesktop',
             'periods'                => 'day',
             'idSite'                 => $idSite2,
-            'date'                   => $today,
+            'date'                   => $dateTime,
             'otherRequestParameters' => array(
                 'date'      => '2010-03-01,2010-03-06',
                 'period'    => 'month',
@@ -184,11 +183,11 @@ class Test_Piwik_Integration_RowEvolution extends IntegrationTestCase
             'testSuffix'             => '_multiWithFilterLimit',
             'periods'                => 'day',
             'idSite'                 => $idSite,
-            'date'                   => $today,
+            'date'                   => $dateTime,
             'otherRequestParameters' => array(
                 'date'         => '2010-03-01,2010-03-06',
                 'period'       => 'day',
-                'apiModule'    => 'Referers',
+                'apiModule'    => 'Referrers',
                 'apiAction'    => 'getWebsites',
                 'filter_limit' => 3, // only 3 labels should show up
             )
@@ -199,11 +198,11 @@ class Test_Piwik_Integration_RowEvolution extends IntegrationTestCase
             'testSuffix'             => '_multiWithNoData',
             'periods'                => 'day',
             'idSite'                 => $idSite,
-            'date'                   => $today,
+            'date'                   => $dateTime,
             'otherRequestParameters' => array(
                 'date'      => '2010-04-01,2010-04-06',
                 'period'    => 'day',
-                'apiModule' => 'Referers',
+                'apiModule' => 'Referrers',
                 'apiAction' => 'getWebsites',
                 // no label
             )
@@ -211,7 +210,7 @@ class Test_Piwik_Integration_RowEvolution extends IntegrationTestCase
         
         // (non-rowevolution test) test flattener w/ search engines to make sure
         // queued filters are not applied twice
-        $return[] = array('Referers.getSearchEngines', array(
+        $return[] = array('Referrers.getSearchEngines', array(
             'testSuffix'             => '_flatFilters',
             'periods'                => 'month',
             'idSite'                 => $idSite,

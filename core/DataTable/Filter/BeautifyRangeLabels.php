@@ -5,30 +5,35 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Piwik
  */
 namespace Piwik\DataTable\Filter;
 
 use Piwik\DataTable;
-use Piwik\DataTable\Filter\ColumnCallbackReplace;
+use Piwik\Piwik;
 
 /**
- * A DataTable filter that replaces range label columns with prettier,
+ * A {@link DataTable} filter that replaces range label columns with prettier,
  * human-friendlier versions.
  *
  * When reports that summarize data over a set of ranges (such as the
- * reports in the VisitorInterest plugin) are archived, they are
+ * reports in the **VisitorInterest** plugin) are archived, they are
  * archived with labels that read as: '$min-$max' or '$min+'. These labels
  * have no units and can look like '1-1'.
  *
- * This filter can be used to clean up and add units those range labels. To
+ * This filter can be used to clean up and add units to those range labels. To
  * do this, you supply a string to use when the range specifies only
  * one unit (ie '1-1') and another format string when the range specifies
  * more than one unit (ie '2-2', '3-5' or '6+').
  *
- * This filter can also be extended to beautify ranges differently based
- * on the range values.
+ * This filter can be extended to vary exactly how ranges are prettified based
+ * on the range values found in the DataTable. To see an example of this,
+ * take a look at the {@link BeautifyTimeRangeLabels} filter.
+ * 
+ * **Basic usage example**
+ * 
+ *     $dataTable->queueFilter('BeautifyRangeLabels', array("1 visit", "%s visits"));
+ * 
+ * @api
  */
 class BeautifyRangeLabels extends ColumnCallbackReplace
 {
@@ -48,12 +53,12 @@ class BeautifyRangeLabels extends ColumnCallbackReplace
     /**
      * Constructor.
      *
-     * @param DataTable $table          The DataTable that will be filtered.
-     * @param string $labelSingular  The string to use when the range being beautified
-     *                                         is equal to '1-1 units'.
-     * @param string $labelPlural    The string to use when the range being beautified
-     *                                         references more than one unit. This must be a format
-     *                                         string that takes one string parameter.
+     * @param DataTable $table The DataTable that will be filtered.
+     * @param string $labelSingular The string to use when the range being beautified
+     *                              is equal to '1-1 units', eg `"1 visit"`.
+     * @param string $labelPlural The string to use when the range being beautified
+     *                            references more than one unit. This must be a format
+     *                            string that takes one string parameter, eg, `"%s visits"`.
      */
     public function __construct($table, $labelSingular, $labelPlural)
     {
@@ -64,9 +69,9 @@ class BeautifyRangeLabels extends ColumnCallbackReplace
     }
 
     /**
-     * Beautifies a range label and returns the pretty result.
+     * Beautifies a range label and returns the pretty result. See {@link BeautifyRangeLabels}.
      *
-     * @param string $value  The range string. This must be in either a '$min-$max' format
+     * @param string $value The range string. This must be in either a '$min-$max' format
      *                        a '$min+' format.
      * @return string  The pretty range label.
      */
@@ -103,7 +108,7 @@ class BeautifyRangeLabels extends ColumnCallbackReplace
             } else {
                 // if no lower bound can be found, this isn't a valid range. in this case
                 // we assume its a translation key and try to translate it.
-                return Piwik_Translate(trim($value));
+                return Piwik::translate(trim($value));
             }
         }
     }
@@ -115,8 +120,8 @@ class BeautifyRangeLabels extends ColumnCallbackReplace
      * This function can be overridden in derived types to customize beautifcation
      * behavior based on the range values.
      *
-     * @param string $oldLabel    The original label value.
-     * @param int $lowerBound  The lower bound of the range.
+     * @param string $oldLabel The original label value.
+     * @param int $lowerBound The lower bound of the range.
      * @return string  The pretty range label.
      */
     public function getSingleUnitLabel($oldLabel, $lowerBound)
@@ -135,9 +140,9 @@ class BeautifyRangeLabels extends ColumnCallbackReplace
      * This function can be overridden in derived types to customize beautifcation
      * behavior based on the range values.
      *
-     * @param string $oldLabel    The original label value.
-     * @param int $lowerBound  The lower bound of the range.
-     * @param int $upperBound  The upper bound of the range.
+     * @param string $oldLabel The original label value.
+     * @param int $lowerBound The lower bound of the range.
+     * @param int $upperBound The upper bound of the range.
      * @return string  The pretty range label.
      */
     public function getRangeLabel($oldLabel, $lowerBound, $upperBound)
@@ -152,8 +157,8 @@ class BeautifyRangeLabels extends ColumnCallbackReplace
      * This function can be overridden in derived types to customize beautifcation
      * behavior based on the range values.
      *
-     * @param string $oldLabel    The original label value.
-     * @param int $lowerBound  The lower bound of the range.
+     * @param string $oldLabel The original label value.
+     * @param int $lowerBound The lower bound of the range.
      * @return string  The pretty range label.
      */
     public function getUnboundedLabel($oldLabel, $lowerBound)

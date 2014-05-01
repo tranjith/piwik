@@ -5,17 +5,12 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Piwik
  */
 
 namespace Piwik\Translate\Filter;
 
-use Piwik\Translate\Filter\FilterAbstract;
 
 /**
- * @package Piwik
- * @subpackage Piwik_Translate
  */
 class EmptyTranslations extends FilterAbstract
 {
@@ -25,7 +20,6 @@ class EmptyTranslations extends FilterAbstract
      * @param array $translations
      *
      * @return array   filtered translations
-     *
      */
     public function filter($translations)
     {
@@ -33,7 +27,7 @@ class EmptyTranslations extends FilterAbstract
 
         foreach ($translations AS $plugin => &$pluginTranslations) {
 
-            $pluginTranslations = array_filter($pluginTranslations, function($value) {
+            $pluginTranslations = array_filter($pluginTranslations, function ($value) {
                 return !empty($value) && '' != trim($value);
             });
 
@@ -44,7 +38,7 @@ class EmptyTranslations extends FilterAbstract
         }
 
         // remove plugins without translations
-        $translations = array_filter($translations, function($value) {
+        $translations = array_filter($translations, function ($value) {
             return !empty($value) && count($value);
         });
 

@@ -5,8 +5,6 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Piwik
  */
 namespace Piwik\Db\Adapter\Pdo;
 
@@ -15,11 +13,10 @@ use PDO;
 use PDOException;
 use Piwik\Config;
 use Piwik\Db\AdapterInterface;
+use Piwik\Piwik;
 use Zend_Db_Adapter_Pdo_Pgsql;
 
 /**
- * @package Piwik
- * @subpackage Piwik_Db
  */
 class Pgsql extends Zend_Db_Adapter_Pdo_Pgsql implements AdapterInterface
 {
@@ -51,7 +48,7 @@ class Pgsql extends Zend_Db_Adapter_Pdo_Pgsql implements AdapterInterface
         $databaseVersion = $this->getServerVersion();
         $requiredVersion = Config::getInstance()->General['minimum_pgsql_version'];
         if (version_compare($databaseVersion, $requiredVersion) === -1) {
-            throw new Exception(Piwik_TranslateException('General_ExceptionDatabaseVersion', array('PostgreSQL', $databaseVersion, $requiredVersion)));
+            throw new Exception(Piwik::translate('General_ExceptionDatabaseVersion', array('PostgreSQL', $databaseVersion, $requiredVersion)));
         }
     }
 

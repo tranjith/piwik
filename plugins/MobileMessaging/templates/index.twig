@@ -2,7 +2,9 @@
 
 {% block content %}
     {% if accountManagedByCurrentUser %}
-        <h2>{{ 'MobileMessaging_Settings_SMSAPIAccount'|translate }}</h2>
+        <h2 piwik-enriched-headline
+            feature-name="{{ 'MobileMessaging_SettingsMenu'|translate }}"
+                >{{ 'MobileMessaging_Settings_SMSAPIAccount'|translate }}</h2>
         {% if credentialSupplied %}
             {{ 'MobileMessaging_Settings_CredentialProvided'|translate(provider) }}
             {{ creditLeft }}
@@ -37,7 +39,10 @@
     {% endif %}
 
     {% import 'ajaxMacros.twig' as ajax %}
-    {{ ajax.errorDiv('ajaxErrorMobileMessagingSettings') }}
+
+    <div style="margin-top:10px">
+        {{ ajax.errorDiv('ajaxErrorMobileMessagingSettings') }}
+    </div>
 
     <h2>{{ 'MobileMessaging_PhoneNumbers'|translate }}</h2>
     {% if not credentialSupplied %}
@@ -107,7 +112,7 @@
 
                     {{ ajax.errorDiv('invalidVerificationCodeAjaxError') }}
 
-                    <div id='phoneNumberActivated' class="ajaxSuccess" style="display:none;">
+                    <div id='phoneNumberActivated' style="display:none;">
                         {{ 'MobileMessaging_Settings_PhoneActivated'|translate }}
                     </div>
 

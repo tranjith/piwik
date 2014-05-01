@@ -5,30 +5,47 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Piwik
  */
 namespace Piwik\DataTable\Filter;
 
-use Piwik\DataTable\Filter;
+use Piwik\DataTable\BaseFilter;
 use Piwik\DataTable\Row;
-use Piwik\Metrics;
 use Piwik\DataTable;
+use Piwik\Metrics;
 
 /**
- * @package Piwik
- * @subpackage DataTable
+ * Adds processed metrics columns to a {@link DataTable} using metrics that already exist.
+ *
+ * Columns added are:
+ * 
+ * - **conversion_rate**: percent value of `nb_visits_converted / nb_visits
+ * - **nb_actions_per_visit**: `nb_actions / nb_visits`
+ * - **avg_time_on_site**: in number of seconds, `round(visit_length / nb_visits)`. Not
+ *                         pretty formatted.
+ * - **bounce_rate**: percent value of `bounce_count / nb_visits`
+ * 
+ * Adding the **filter_add_columns_when_show_all_columns** query parameter to
+ * an API request will trigger the execution of this Filter.
+ * 
+ * _Note: This filter must be called before {@link ReplaceColumnNames} is called._
+ * 
+ * **Basic usage example**
+ * 
+ *     $dataTable->filter('AddColumnsProcessedMetrics');
+ * 
+ * @api
  */
-class AddColumnsProcessedMetrics extends Filter
+class AddColumnsProcessedMetrics extends BaseFilter
 {
     protected $invalidDivision = 0;
     protected $roundPrecision = 2;
     protected $deleteRowsWithNoVisit = true;
 
     /**
-     * @param DataTable $table
-     * @param bool $deleteRowsWithNoVisit  Automatically set to true when filter_add_columns_when_show_all_columns is found in the API request
-     * @return AddColumnsProcessedMetrics
+     * Constructor.
+     * 
+     * @param DataTable $table The table to eventually filter.
+     * @param bool $deleteRowsWithNoVisit Whether to delete rows with no visits or not.
      */
     public function __construct($table, $deleteRowsWithNoVisit = true)
     {
@@ -37,7 +54,8 @@ class AddColumnsProcessedMetrics extends Filter
     }
 
     /**
-     * Filters the given data table
+     * Adds the processed metrics. See {@link AddColumnsProcessedMetrics} for
+     * more information.
      *
      * @param DataTable $table
      */
@@ -128,5 +146,4 @@ class AddColumnsProcessedMetrics extends Filter
         }
         return false;
     }
-
 }

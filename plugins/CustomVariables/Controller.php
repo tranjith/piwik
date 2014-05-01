@@ -5,34 +5,32 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik_Plugins
- * @package CustomVariables
  */
 namespace Piwik\Plugins\CustomVariables;
 
-use Piwik\ViewDataTable;
+use Piwik\Piwik;
 use Piwik\View;
+use Piwik\ViewDataTable\Factory;
 
 /**
- * @package CustomVariables
  */
-class Controller extends \Piwik\Controller
+class Controller extends \Piwik\Plugin\Controller
 {
-    public function index($fetch = false)
+    public function index()
     {
         return View::singleReport(
-            Piwik_Translate('CustomVariables_CustomVariables'),
-            $this->getCustomVariables(true), $fetch);
+            Piwik::translate('CustomVariables_CustomVariables'),
+            $this->getCustomVariables(true));
     }
 
-    public function getCustomVariables($fetch = false)
+    public function getCustomVariables()
     {
-        return ViewDataTable::renderReport($this->pluginName, __FUNCTION__, $fetch);
+        return $this->renderReport(__FUNCTION__);
     }
 
-    public function getCustomVariablesValuesFromNameId($fetch = false)
+    public function getCustomVariablesValuesFromNameId()
     {
-        return ViewDataTable::renderReport($this->pluginName, __FUNCTION__, $fetch);
+        return $this->renderReport(__FUNCTION__);
     }
 }
 

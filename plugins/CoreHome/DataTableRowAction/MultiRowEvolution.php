@@ -5,19 +5,15 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik_Plugins
- * @package CoreHome
  */
 namespace Piwik\Plugins\CoreHome\DataTableRowAction;
 
 use Piwik\Common;
-use Piwik\ViewDataTable;
-use Piwik\Plugins\CoreHome\DataTableRowAction\RowEvolution;
+use Piwik\Piwik;
 
 /**
  * MULTI ROW EVOLUTION
  * The class handles the popover that shows the evolution of a multiple rows in a data table
- * @package CoreHome
  */
 class MultiRowEvolution extends RowEvolution
 {
@@ -58,7 +54,7 @@ class MultiRowEvolution extends RowEvolution
 
     /**
      * Render the popover
-     * @param Piwik_CoreHome_Controller
+     * @param \Piwik\Plugins\CoreHome\Controller $controller
      * @param View (the popover_rowevolution template)
      */
     public function renderPopover($controller, $view)
@@ -68,7 +64,7 @@ class MultiRowEvolution extends RowEvolution
         $view->selectedMetric = $this->metric;
 
         $view->availableRecordsText = $this->dimension . ': '
-            . Piwik_Translate('RowEvolution_ComparingRecords', array(count($this->availableMetrics)));
+            . Piwik::translate('RowEvolution_ComparingRecords', array(count($this->availableMetrics)));
 
         return parent::renderPopover($controller, $view);
     }

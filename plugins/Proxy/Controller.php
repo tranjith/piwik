@@ -5,12 +5,11 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik_Plugins
- * @package Proxy
  */
 namespace Piwik\Plugins\Proxy;
 
 use Piwik\AssetManager;
+use Piwik\AssetManager\UIAsset;
 use Piwik\Common;
 use Piwik\Piwik;
 use Piwik\ProxyHttp;
@@ -20,9 +19,8 @@ use Piwik\UrlHelper;
 /**
  * Controller for proxy services
  *
- * @package Proxy
  */
-class Controller extends \Piwik\Controller
+class Controller extends \Piwik\Plugin\Controller
 {
     const TRANSPARENT_PNG_PIXEL = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABAQMAAAAl21bKAAAAA1BMVEUAAACnej3aAAAAAXRSTlMAQObYZgAAAApJREFUCNdjYAAAAAIAAeIhvDMAAAAASUVORK5CYII=';
     const JS_MIME_TYPE = "application/javascript; charset=UTF-8";
@@ -35,38 +33,40 @@ class Controller extends \Piwik\Controller
      */
     public function getCss()
     {
-        $cssMergedFile = AssetManager::getMergedCssFileLocation();
-        ProxyHttp::serverStaticFile($cssMergedFile, "text/css");
+        $cssMergedFile = AssetManager::getInstance()->getMergedStylesheet();
+        ProxyHttp::serverStaticFile($cssMergedFile->getAbsoluteLocation(), "text/css");
     }
 
     /**
-     * Output the merged JavaScript file.
+     * Output the merged core JavaScript file.
      * This method is called when the asset manager is enabled.
      *
      * @see core/AssetManager.php
      */
-    public function getJs()
+    public function getCoreJs()
     {
-        $jsMergedFile = AssetManager::getMergedJsFileLocation();
-        ProxyHttp::serverStaticFile($jsMergedFile, self::JS_MIME_TYPE);
+        $jsMergedFile = AssetManager::getInstance()->getMergedCoreJavaScript();
+        $this->serveJsFile($jsMergedFile);
     }
 
     /**
-     * Output the translations JavaScript file.
-     * This method is called when the asset manager is disabled (otherwise it would be part
-     * of the merged JS file.)
-     * 
-     * Note: This method always regenerates the file since not doing so would make development
-     * painful.
-     * 
+     * Output the merged non core JavaScript file.
+     * This method is called when the asset manager is enabled.
+     *
      * @see core/AssetManager.php
      */
-    public function getTranslationJs()
+    public function getNonCoreJs()
     {
-        AssetManager::removeTranslationsJsFile();
-        
-        $translationsJsFile = AssetManager::getTranslationsJsFileLocation();
-        ProxyHttp::serverStaticFile($translationsJsFile, self::JS_MIME_TYPE);
+        $jsMergedFile = AssetManager::getInstance()->getMergedNonCoreJavaScript();
+        $this->serveJsFile($jsMergedFile);
+    }
+
+    /**
+     * @param UIAsset $uiAsset
+     */
+    private function serveJsFile($uiAsset)
+    {
+        ProxyHttp::serverStaticFile($uiAsset->getAbsoluteLocation(), self::JS_MIME_TYPE);
     }
 
     /**
@@ -80,11 +80,11 @@ class Controller extends \Piwik\Controller
         $url = Common::getRequestVar('url', '', 'string', $_GET);
 
         // validate referrer
-        $referrer = Url::getReferer();
+        $referrer = Url::getReferrer();
         if (empty($referrer) || !Url::isLocalUrl($referrer)) {
             die('Invalid Referrer detected - This means that your web browser is not sending the "Referrer URL" which is
 				required to proceed with the redirect. Verify your browser settings and add-ons, to check why your browser
-				 is not sending this referer.
+				 is not sending this referrer.
 
 				<br/><br/>You can access the page at: ' . $url);
         }

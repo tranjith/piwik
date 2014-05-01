@@ -5,35 +5,22 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik_Plugins
- * @package VisitorInterest
  */
 namespace Piwik\Plugins\VisitorInterest;
 
 use Piwik\Archive;
+use Piwik\DataTable;
 use Piwik\Metrics;
 use Piwik\Piwik;
-use Piwik\DataTable;
-use Piwik\Plugins\VisitorInterest\Archiver;
 
 /**
  * VisitorInterest API lets you access two Visitor Engagement reports: number of visits per number of pages,
  * and number of visits per visit duration.
  *
- * @package VisitorInterest
+ * @method static \Piwik\Plugins\VisitorInterest\API getInstance()
  */
-class API
+class API extends \Piwik\Plugin\API
 {
-    static private $instance = null;
-
-    static public function getInstance()
-    {
-        if (self::$instance == null) {
-            self::$instance = new self;
-        }
-        return self::$instance;
-    }
-
     protected function getDataTable($name, $idSite, $period, $date, $segment, $column = Metrics::INDEX_NB_VISITS)
     {
         Piwik::checkUserHasViewAccess($idSite);
@@ -48,9 +35,9 @@ class API
         $dataTable = $this->getDataTable(Archiver::TIME_SPENT_RECORD_NAME, $idSite, $period, $date, $segment);
         $dataTable->queueFilter('Sort', array('label', 'asc', true));
         $dataTable->queueFilter('BeautifyTimeRangeLabels', array(
-                                                                Piwik_Translate('VisitorInterest_BetweenXYSeconds'),
-                                                                Piwik_Translate('VisitorInterest_OneMinute'),
-                                                                Piwik_Translate('VisitorInterest_PlusXMin')));
+                                                                Piwik::translate('VisitorInterest_BetweenXYSeconds'),
+                                                                Piwik::translate('VisitorInterest_OneMinute'),
+                                                                Piwik::translate('VisitorInterest_PlusXMin')));
         return $dataTable;
     }
 
@@ -59,8 +46,8 @@ class API
         $dataTable = $this->getDataTable(Archiver::PAGES_VIEWED_RECORD_NAME, $idSite, $period, $date, $segment);
         $dataTable->queueFilter('Sort', array('label', 'asc', true));
         $dataTable->queueFilter('BeautifyRangeLabels', array(
-                                                            Piwik_Translate('VisitorInterest_OnePage'),
-                                                            Piwik_Translate('VisitorInterest_NPages')));
+                                                            Piwik::translate('VisitorInterest_OnePage'),
+                                                            Piwik::translate('VisitorInterest_NPages')));
         return $dataTable;
     }
 
@@ -78,7 +65,7 @@ class API
     {
         $dataTable = $this->getDataTable(
             Archiver::DAYS_SINCE_LAST_RECORD_NAME, $idSite, $period, $date, $segment, Metrics::INDEX_NB_VISITS);
-        $dataTable->queueFilter('BeautifyRangeLabels', array(Piwik_Translate('General_OneDay'), Piwik_Translate('General_NDays')));
+        $dataTable->queueFilter('BeautifyRangeLabels', array(Piwik::translate('General_OneDay'), Piwik::translate('General_NDays')));
         return $dataTable;
     }
 
@@ -98,7 +85,7 @@ class API
             Archiver::VISITS_COUNT_RECORD_NAME, $idSite, $period, $date, $segment, Metrics::INDEX_NB_VISITS);
 
         $dataTable->queueFilter('BeautifyRangeLabels', array(
-                                                            Piwik_Translate('General_OneVisit'), Piwik_Translate('General_NVisits')));
+                                                            Piwik::translate('General_OneVisit'), Piwik::translate('General_NVisits')));
 
         // add visit percent column
         self::addVisitsPercentColumn($dataTable);
@@ -116,7 +103,7 @@ class API
     private static function addVisitsPercentColumn($dataTable)
     {
         if ($dataTable instanceof DataTable\Map) {
-            foreach ($dataTable->getArray() as $table) {
+            foreach ($dataTable->getDataTables() as $table) {
                 self::addVisitsPercentColumn($table);
             }
         } else {

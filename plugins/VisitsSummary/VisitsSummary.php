@@ -5,11 +5,11 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik_Plugins
- * @package VisitsSummary
  */
 namespace Piwik\Plugins\VisitsSummary;
 
+use Piwik\Menu\MenuMain;
+use Piwik\Piwik;
 use Piwik\WidgetsList;
 
 /**
@@ -18,27 +18,27 @@ use Piwik\WidgetsList;
  * Day class directly.
  * These metrics can be used by other Plugins so they need to be processed up front.
  *
- * @package VisitsSummary
  */
 class VisitsSummary extends \Piwik\Plugin
 {
     /**
-     * @see Piwik_Plugin::getListHooksRegistered
+     * @see Piwik\Plugin::getListHooksRegistered
      */
     public function getListHooksRegistered()
     {
         return array(
-            'API.getReportMetadata' => 'getReportMetadata',
-            'WidgetsList.add'       => 'addWidgets',
-            'Menu.add'              => 'addMenu',
+            'API.getReportMetadata'   => 'getReportMetadata',
+            'WidgetsList.addWidgets'  => 'addWidgets',
+            'Menu.Reporting.addItems' => 'addMenu',
+            'AssetManager.getStylesheetFiles' => 'getStylesheetFiles',
         );
     }
 
     public function getReportMetadata(&$reports)
     {
         $reports[] = array(
-            'category'         => Piwik_Translate('VisitsSummary_VisitsSummary'),
-            'name'             => Piwik_Translate('VisitsSummary_VisitsSummary'),
+            'category'         => Piwik::translate('VisitsSummary_VisitsSummary'),
+            'name'             => Piwik::translate('VisitsSummary_VisitsSummary'),
             'module'           => 'VisitsSummary',
             'action'           => 'get',
             'metrics'          => array(
@@ -47,8 +47,8 @@ class VisitsSummary extends \Piwik\Plugin
                 'nb_actions',
                 'nb_actions_per_visit',
                 'bounce_rate',
-                'avg_time_on_site' => Piwik_Translate('General_VisitDuration'),
-                'max_actions'      => Piwik_Translate('General_ColumnMaxActions'),
+                'avg_time_on_site' => Piwik::translate('General_VisitDuration'),
+                'max_actions'      => Piwik::translate('General_ColumnMaxActions'),
 // Used to process metrics, not displayed/used directly
 //								'sum_visit_length',
 //								'nb_visits_converted',
@@ -56,6 +56,11 @@ class VisitsSummary extends \Piwik\Plugin
             'processedMetrics' => false,
             'order'            => 1
         );
+    }
+
+    public function getStylesheetFiles(&$stylesheets)
+    {
+        $stylesheets[] = "plugins/VisitsSummary/stylesheets/datatable.less";
     }
 
     function addWidgets()
@@ -67,8 +72,8 @@ class VisitsSummary extends \Piwik\Plugin
 
     function addMenu()
     {
-        Piwik_AddMenu('General_Visitors', '', array('module' => 'VisitsSummary', 'action' => 'index'), true, 10);
-        Piwik_AddMenu('General_Visitors', 'General_Overview', array('module' => 'VisitsSummary', 'action' => 'index'), true, 1);
+        MenuMain::getInstance()->add('General_Visitors', '', array('module' => 'VisitsSummary', 'action' => 'index'), true, 10);
+        MenuMain::getInstance()->add('General_Visitors', 'General_Overview', array('module' => 'VisitsSummary', 'action' => 'index'), true, 1);
     }
 }
 

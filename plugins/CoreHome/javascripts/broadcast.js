@@ -88,6 +88,10 @@ var broadcast = {
         }
 
         // hash doesn't contain the first # character.
+        if (hash && 0 === (''+hash).indexOf('/')) {
+            hash = (''+hash).substr(1);
+        }
+
         if (hash) {
 
             if (/^popover=/.test(hash)) {
@@ -128,7 +132,7 @@ var broadcast = {
                     broadcast.loadAjaxContent(hashUrl);
 
                     // make sure the "Widgets & Dashboard" is deleted on reload
-                    $('#dashboardSettings').remove();
+                    $('.top_controls .dashboard-manager').hide();
                     $('#dashboardWidgetsArea').dashboard('destroy');
 
                     // remove unused controls
@@ -156,14 +160,14 @@ var broadcast = {
             // start page
             Piwik_Popover.close();
 
-            $('#content:not(.admin)').empty();
+            $('.pageWrap #content:not(.admin)').empty();
         }
     },
 
     /**
      * propagateAjax -- update hash values then make ajax calls.
      *    example :
-     *       1) <a href="javascript:broadcast.propagateAjax('module=Referers&action=getKeywords')">View keywords report</a>
+     *       1) <a href="javascript:broadcast.propagateAjax('module=Referrers&action=getKeywords')">View keywords report</a>
      *       2) Main menu li also goes through this function.
      *
      * Will propagate your new value into the current hash string and make ajax calls.
@@ -365,7 +369,8 @@ var broadcast = {
             newHash = '#';
         }
 
-        window.location.href = 'index.php' + window.location.search + newHash;
+        broadcast.forceReload = false;
+        $.history.load(newHash);
     },
 
     /**
@@ -391,15 +396,17 @@ var broadcast = {
      * @return {Boolean}
      */
     loadAjaxContent: function (urlAjax) {
-        piwikMenu.activateMenu(
-            broadcast.getParamValue('module', urlAjax),
-            broadcast.getParamValue('action', urlAjax),
-            broadcast.getParamValue('idGoal', urlAjax) || broadcast.getParamValue('idDashboard', urlAjax)
-        );
+        if (typeof piwikMenu !== 'undefined') {
+            piwikMenu.activateMenu(
+                broadcast.getParamValue('module', urlAjax),
+                broadcast.getParamValue('action', urlAjax),
+                broadcast.getParamValue('idGoal', urlAjax) || broadcast.getParamValue('idDashboard', urlAjax)
+            );
+        }
 
         piwikHelper.hideAjaxError('loadingError');
         piwikHelper.showAjaxLoading();
-        $('#content').hide();
+        $('#content').empty();
         $("object").remove();
 
         urlAjax = urlAjax.match(/^\?/) ? urlAjax : "?" + urlAjax;
@@ -408,14 +415,24 @@ var broadcast = {
             // if content is whole HTML document, do not show it, otherwise recursive page load could occur
             var htmlDocType = '<!DOCTYPE';
             if (content.substring(0, htmlDocType.length) == htmlDocType) {
-                return;
+                // if the content has an error message, display it
+                if ($(content).filter('title').text() == 'Piwik › Error') {
+                    content = $(content).filter('#contentsimple');
+                } else {
+                    return;
+                }
             }
 
             if (urlAjax == broadcast.lastUrlRequested) {
                 $('#content').html(content).show();
+                $(broadcast).trigger('locationChangeSuccess', {element: $('#content'), content: content});
                 piwikHelper.hideAjaxLoading();
                 broadcast.lastUrlRequested = null;
+
+                piwikHelper.compileAngularComponents('#content');
             }
+
+            initTopControls();
         }
 
         var ajax = new ajaxHelper();

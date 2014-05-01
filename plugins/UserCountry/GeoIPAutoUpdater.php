@@ -5,29 +5,33 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik_Plugins
- * @package UserCountry
  */
 namespace Piwik\Plugins\UserCountry;
 
+require_once PIWIK_INCLUDE_PATH . "/core/ScheduledTask.php"; // for the tracker which doesn't include this file
+
 use Exception;
-use Piwik\Piwik;
 use Piwik\Common;
 use Piwik\Date;
 use Piwik\Http;
+use Piwik\Log;
+use Piwik\Option;
+use Piwik\Piwik;
 use Piwik\Plugins\UserCountry\LocationProvider;
-use Piwik\ScheduledTime\Monthly;
-use Piwik\ScheduledTime\Weekly;
-use Piwik\Unzip;
-use Piwik\ScheduledTask;
 use Piwik\Plugins\UserCountry\LocationProvider\GeoIp;
 use Piwik\Plugins\UserCountry\LocationProvider\GeoIp\Php;
+use Piwik\ScheduledTask;
+use Piwik\ScheduledTaskTimetable;
+use Piwik\ScheduledTime\Monthly;
+use Piwik\ScheduledTime\Weekly;
+use Piwik\TaskScheduler;
+use Piwik\Unzip;
 
 /**
  * Used to automatically update installed GeoIP databases, and manages the updater's
  * scheduled task.
  */
-class GeoIPAutoUpdater
+class GeoIPAutoUpdater extends ScheduledTask
 {
     const SCHEDULE_PERIOD_MONTHLY = 'month';
     const SCHEDULE_PERIOD_WEEKLY = 'week';
@@ -54,31 +58,55 @@ class GeoIPAutoUpdater
     private static $unzipPhpError = null;
 
     /**
+     * Constructor.
+     */
+    public function __construct()
+    {
+        $schedulePeriodStr = self::getSchedulePeriod();
+
+        // created the scheduledtime instance, also, since GeoIP updates are done on tuesdays,
+        // get new DBs on Wednesday
+        switch ($schedulePeriodStr) {
+            case self::SCHEDULE_PERIOD_WEEKLY:
+                $schedulePeriod = new Weekly();
+                $schedulePeriod->setDay(3);
+                break;
+            case self::SCHEDULE_PERIOD_MONTHLY:
+            default:
+                $schedulePeriod = new Monthly();
+                $schedulePeriod->setDayOfWeek(3, 0);
+                break;
+        }
+
+        parent::__construct($this, 'update', null, $schedulePeriod, ScheduledTask::LOWEST_PRIORITY);
+    }
+
+    /**
      * Attempts to download new location, ISP & organization GeoIP databases and
      * replace the existing ones w/ them.
      */
     public function update()
     {
         try {
-            Piwik_SetOption(self::LAST_RUN_TIME_OPTION_NAME, Date::factory('today')->getTimestamp());
+            Option::set(self::LAST_RUN_TIME_OPTION_NAME, Date::factory('today')->getTimestamp());
 
-            $locUrl = Piwik_GetOption(self::LOC_URL_OPTION_NAME);
+            $locUrl = Option::get(self::LOC_URL_OPTION_NAME);
             if (!empty($locUrl)) {
                 $this->downloadFile('loc', $locUrl);
             }
 
-            $ispUrl = Piwik_GetOption(self::ISP_URL_OPTION_NAME);
+            $ispUrl = Option::get(self::ISP_URL_OPTION_NAME);
             if (!empty($ispUrl)) {
                 $this->downloadFile('isp', $ispUrl);
             }
 
-            $orgUrl = Piwik_GetOption(self::ORG_URL_OPTION_NAME);
+            $orgUrl = Option::get(self::ORG_URL_OPTION_NAME);
             if (!empty($orgUrl)) {
                 $this->downloadFile('org', $orgUrl);
             }
         } catch (Exception $ex) {
             // message will already be prefixed w/ 'GeoIPAutoUpdater: '
-            Piwik::log($ex->getMessage());
+            Log::error($ex);
             $this->performRedundantDbChecks();
             throw $ex;
         }
@@ -101,6 +129,8 @@ class GeoIPAutoUpdater
     protected function downloadFile($dbType, $url)
     {
         $ext = GeoIPAutoUpdater::getGeoIPUrlExtension($url);
+
+        // NOTE: using the first item in $dbNames[$dbType] makes sure GeoLiteCity will be renamed to GeoIPCity
         $zippedFilename = GeoIp::$dbNames[$dbType][0] . '.' . $ext;
 
         $zippedOutputPath = GeoIp::getPathForGeoIpDatabase($zippedFilename);
@@ -120,7 +150,7 @@ class GeoIPAutoUpdater
                 . "'$zippedOutputPath'! (Unknown error)");
         }
 
-        Piwik::log(sprintf("GeoIPAutoUpdater: successfully downloaded '%s'", $url));
+        Log::info("GeoIPAutoUpdater: successfully downloaded '%s'", $url);
 
         try {
             self::unzipDownloadedFile($zippedOutputPath, $unlink = true);
@@ -129,7 +159,7 @@ class GeoIPAutoUpdater
                 . "downloading " . "'$url': " . $ex->getMessage());
         }
 
-        Piwik::log(sprintf("GeoIPAutoUpdater: successfully updated GeoIP database '%s'", $url));
+        Log::info("GeoIPAutoUpdater: successfully updated GeoIP database '%s'", $url);
     }
 
     /**
@@ -155,7 +185,7 @@ class GeoIPAutoUpdater
             $content = $unzip->listContent();
 
             if (empty($content)) {
-                throw new Exception(Piwik_Translate('UserCountry_CannotListContent',
+                throw new Exception(Piwik::translate('UserCountry_CannotListContent',
                     array("'$path'", $unzip->errorInfo())));
             }
 
@@ -168,7 +198,7 @@ class GeoIPAutoUpdater
             }
 
             if ($datFile === null) {
-                throw new Exception(Piwik_Translate('UserCountry_CannotFindGeoIPDatabaseInArchive',
+                throw new Exception(Piwik::translate('UserCountry_CannotFindGeoIPDatabaseInArchive',
                     array($dbFilename, "'$path'")));
             }
 
@@ -176,7 +206,7 @@ class GeoIPAutoUpdater
             $unzipped = $unzip->extractInString($datFile);
 
             if (empty($unzipped)) {
-                throw new Exception(Piwik_Translate('UserCountry_CannotUnzipDatFile',
+                throw new Exception(Piwik::translate('UserCountry_CannotUnzipDatFile',
                     array("'$path'", $unzip->errorInfo())));
             }
 
@@ -189,12 +219,12 @@ class GeoIPAutoUpdater
             $success = $unzip->extract($outputPath);
 
             if ($success !== true) {
-                throw new Exception(Piwik_Translate('UserCountry_CannotUnzipDatFile',
+                throw new Exception(Piwik::translate('UserCountry_CannotUnzipDatFile',
                     array("'$path'", $unzip->errorInfo())));
             }
         } else {
             $ext = end(explode(basename($path), '.', 2));
-            throw new Exception(Piwik_Translate('UserCountry_UnsupportedArchiveType', "'$ext'"));
+            throw new Exception(Piwik::translate('UserCountry_UnsupportedArchiveType', "'$ext'"));
         }
 
         try {
@@ -221,11 +251,11 @@ class GeoIPAutoUpdater
             ) {
                 if (self::$unzipPhpError !== null) {
                     list($errno, $errstr, $errfile, $errline) = self::$unzipPhpError;
-                    Piwik::log("GeoIPAutoUpdater: Encountered PHP error when testing newly downloaded" .
-                        " GeoIP database: $errno: $errstr on line $errline of $errfile.");
+                    Log::info("GeoIPAutoUpdater: Encountered PHP error when testing newly downloaded" .
+                        " GeoIP database: %s: %s on line %s of %s.", $errno, $errstr, $errline, $errfile);
                 }
 
-                throw new Exception(Piwik_Translate('UserCountry_ThisUrlIsNotAValidGeoIPDB'));
+                throw new Exception(Piwik::translate('UserCountry_ThisUrlIsNotAValidGeoIPDB'));
             }
 
             // delete the existing GeoIP database (if any) and rename the downloaded file
@@ -250,34 +280,6 @@ class GeoIPAutoUpdater
 
             throw $ex;
         }
-    }
-
-    /**
-     * Creates a ScheduledTask instance based on set option values.
-     *
-     * @return ScheduledTask
-     */
-    public static function makeScheduledTask()
-    {
-        $instance = new GeoIPAutoUpdater();
-
-        $schedulePeriodStr = self::getSchedulePeriod();
-
-        // created the scheduledtime instance, also, since GeoIP updates are done on tuesdays,
-        // get new DBs on Wednesday
-        switch ($schedulePeriodStr) {
-            case self::SCHEDULE_PERIOD_WEEKLY:
-                $schedulePeriod = new Weekly();
-                $schedulePeriod->setDay(3);
-                break;
-            case self::SCHEDULE_PERIOD_MONTHLY:
-            default:
-                $schedulePeriod = new Monthly();
-                $schedulePeriod->setDayOfWeek(3, 0);
-                break;
-        }
-
-        return new ScheduledTask($instance, 'update', null, $schedulePeriod, ScheduledTask::LOWEST_PRIORITY);
     }
 
     /**
@@ -324,22 +326,25 @@ class GeoIPAutoUpdater
             $url = $options[$optionKey];
             $url = self::removeDateFromUrl($url);
 
-            Piwik_SetOption($optionName, $url);
+            Option::set($optionName, $url);
         }
 
         // set period option
         if (!empty($options['period'])) {
             $period = $options['period'];
+            
             if ($period != self::SCHEDULE_PERIOD_MONTHLY
                 && $period != self::SCHEDULE_PERIOD_WEEKLY
             ) {
-                throw new Exception(Piwik_Translate(
+                throw new Exception(Piwik::translate(
                     'UserCountry_InvalidGeoIPUpdatePeriod',
                     array("'$period'", "'" . self::SCHEDULE_PERIOD_MONTHLY . "', '" . self::SCHEDULE_PERIOD_WEEKLY . "'")
                 ));
             }
 
-            Piwik_SetOption(self::SCHEDULE_PERIOD_OPTION_NAME, $period);
+            Option::set(self::SCHEDULE_PERIOD_OPTION_NAME, $period);
+
+            TaskScheduler::rescheduleTask(new GeoIPAutoUpdater());
         }
     }
 
@@ -351,9 +356,9 @@ class GeoIPAutoUpdater
      */
     public static function isUpdaterSetup()
     {
-        if (Piwik_GetOption(self::LOC_URL_OPTION_NAME) !== false
-            || Piwik_GetOption(self::ISP_URL_OPTION_NAME) !== false
-            || Piwik_GetOption(self::ORG_URL_OPTION_NAME) !== false
+        if (Option::get(self::LOC_URL_OPTION_NAME) !== false
+            || Option::get(self::ISP_URL_OPTION_NAME) !== false
+            || Option::get(self::ORG_URL_OPTION_NAME) !== false
         ) {
             return true;
         }
@@ -370,7 +375,7 @@ class GeoIPAutoUpdater
     {
         $result = array();
         foreach (self::$urlOptions as $key => $optionName) {
-            $result[$key] = Piwik_GetOption($optionName);
+            $result[$key] = Option::get($optionName);
         }
         return $result;
     }
@@ -387,7 +392,7 @@ class GeoIPAutoUpdater
         if (empty(self::$urlOptions[$key])) {
             throw new Exception("Invalid key $key");
         }
-        $url = Piwik_GetOption(self::$urlOptions[$key]);
+        $url = Option::get(self::$urlOptions[$key]);
         return $url;
     }
 
@@ -408,7 +413,7 @@ class GeoIPAutoUpdater
      */
     public static function getSchedulePeriod()
     {
-        $period = Piwik_GetOption(self::SCHEDULE_PERIOD_OPTION_NAME);
+        $period = Option::get(self::SCHEDULE_PERIOD_OPTION_NAME);
         if ($period === false) {
             $period = self::SCHEDULE_PERIOD_MONTHLY;
         }
@@ -473,8 +478,9 @@ class GeoIPAutoUpdater
     {
         if ($ext != 'tar.gz'
             && $ext != 'gz'
+            && $ext != 'dat.gz'
         ) {
-            throw new \Exception(Piwik_Translate('UserCountry_UnsupportedArchiveType', "'$ext'"));
+            throw new \Exception(Piwik::translate('UserCountry_UnsupportedArchiveType', "'$ext'"));
         }
     }
 
@@ -530,8 +536,8 @@ class GeoIPAutoUpdater
             self::getTestLocationCatchPhpErrors($provider);
             if (self::$unzipPhpError !== null) {
                 list($errno, $errstr, $errfile, $errline) = self::$unzipPhpError;
-                Piwik::log("GeoIPAutoUpdater: Encountered PHP error when performing redundant " .
-                    "tests on GeoIP $type database: $errno: $errstr on line $errline of $errfile.");
+                Log::warning("GeoIPAutoUpdater: Encountered PHP error when performing redundant tests on GeoIP "
+                    . "%s database: %s: %s on line %s of %s.", $type, $errno, $errstr, $errline, $errfile);
 
                 // get the current filename for the DB and an available new one to rename it to
                 list($oldPath, $newPath) = $this->getOldAndNewPathsForBrokenDb($customNames[$type]);
@@ -598,19 +604,79 @@ class GeoIPAutoUpdater
      */
     public static function getLastRunTime()
     {
-        $timestamp = Piwik_GetOption(self::LAST_RUN_TIME_OPTION_NAME);
+        $timestamp = Option::get(self::LAST_RUN_TIME_OPTION_NAME);
         return $timestamp === false ? false : Date::factory((int)$timestamp);
     }
 
     /**
      * Removes the &date=... query parameter if present in the URL. This query parameter
      * is in MaxMind URLs by default and will force the download of an old database.
-     * 
+     *
      * @param string $url
      * @return string
      */
     private static function removeDateFromUrl($url)
     {
         return preg_replace("/&date=[^&#]*/", '', $url);
+    }
+
+    /**
+     * Returns the next scheduled time for the auto updater.
+     * 
+     * @return Date|false
+     */
+    public static function getNextRunTime()
+    {
+        $task = new GeoIPAutoUpdater();
+
+        $timetable = new ScheduledTaskTimetable();
+        return $timetable->getScheduledTaskTime($task->getName());
+    }
+
+    /**
+     * See {@link Piwik\ScheduledTime::getRescheduledTime()}.
+     */
+    public function getRescheduledTime()
+    {
+        $nextScheduledTime = parent::getRescheduledTime();
+
+        // if a geoip database is out of date, run the updater as soon as possible
+        if ($this->isAtLeastOneGeoIpDbOutOfDate($nextScheduledTime)) {
+            return time();
+        }
+
+        return $nextScheduledTime;
+    }
+
+    private function isAtLeastOneGeoIpDbOutOfDate($rescheduledTime)
+    {
+        $previousScheduledRuntime = $this->getPreviousScheduledTime($rescheduledTime)->setTime("00:00:00")->getTimestamp();
+
+        foreach (GeoIp::$dbNames as $type => $dbNames) {
+            $dbUrl = Option::get(self::$urlOptions[$type]);
+            $dbPath = GeoIp::getPathToGeoIpDatabase($dbNames);
+
+            // if there is a URL for this DB type and the GeoIP DB file's last modified time is before
+            // the time the updater should have been previously run, then **the file is out of date**
+            if (!empty($dbUrl)
+                && filemtime($dbPath) < $previousScheduledRuntime
+            ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function getPreviousScheduledTime($rescheduledTime)
+    {
+        $updaterPeriod = self::getSchedulePeriod();
+
+        if ($updaterPeriod == self::SCHEDULE_PERIOD_WEEKLY) {
+            return Date::factory($rescheduledTime)->subWeek(1);
+        } else if ($updaterPeriod == self::SCHEDULE_PERIOD_MONTHLY) {
+            return Date::factory($rescheduledTime)->subMonth(1);
+        }
+        throw new Exception("Unknown GeoIP updater period found in database: %s", $updaterPeriod);
     }
 }

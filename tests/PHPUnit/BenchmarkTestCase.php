@@ -7,7 +7,6 @@
  */
 use Piwik\Config;
 use Piwik\Db;
-use Piwik\Common;
 use Piwik\Plugins\Goals\API;
 
 require_once PIWIK_INCLUDE_PATH . '/tests/PHPUnit/IntegrationTestCase.php';
@@ -49,22 +48,21 @@ abstract class BenchmarkTestCase extends IntegrationTestCase
         try {
             if (isset(self::$fixture->tablesPrefix)) {
                 Config::getInstance()->database['tables_prefix'] = self::$fixture->tablesPrefix;
-                Common::$cachedTablePrefix = null;
             }
 
             Db::query("USE " . $dbName);
-            $installedFixture = Piwik_GetOption('benchmark_fixture_name');
+            $installedFixture = \Piwik\Option::get('benchmark_fixture_name');
         } catch (Exception $ex) {
             // ignore
         }
 
         $createEmptyDatabase = $fixtureName != $installedFixture;
-        parent::_setUpBeforeClass($dbName, $createEmptyDatabase, $createConfig = false, $installPlugins = true);
+        parent::_setUpBeforeClass($dbName, $createEmptyDatabase);
 
         // if we created an empty database, setup the fixture
         if ($createEmptyDatabase) {
             self::$fixture->setUp();
-            Piwik_SetOption('benchmark_fixture_name', $fixtureName);
+            \Piwik\Option::set('benchmark_fixture_name', $fixtureName);
         }
     }
 
@@ -80,14 +78,14 @@ abstract class BenchmarkTestCase extends IntegrationTestCase
      */
     public static function getLocalTracker($idSite)
     {
-        $t = new Piwik_LocalTracker($idSite, Test_Piwik_BaseFixture::getTrackerUrl());
+        $t = new Piwik_LocalTracker($idSite, Fixture::getTrackerUrl());
         $t->setUserAgent("Mozilla/5.0 (Windows; U; Windows NT 5.1; en-GB; rv:1.9.2.6) Gecko/20100625 Firefox/3.6.6 (.NET CLR 3.5.30729)");
         $t->setBrowserLanguage('fr');
         $t->setLocalTime('12:34:06');
         $t->setResolution(1024, 768);
         $t->setBrowserHasCookies(true);
         $t->setPlugins($flash = true, $java = true, $director = false);
-        $t->setTokenAuth(Test_Piwik_BaseFixture::getTokenAuth());
+        $t->setTokenAuth(Fixture::getTokenAuth());
         return $t;
     }
 }
@@ -104,7 +102,7 @@ class Piwik_Test_Fixture_EmptyOneSite
     public function setUp()
     {
         // add one site
-        Test_Piwik_BaseFixture::createWebsite(
+        Fixture::createWebsite(
             $this->date, $ecommerce = 1, $siteName = "Site #0", $siteUrl = "http://whatever.com/");
 
         // add two goals

@@ -5,23 +5,25 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Piwik
  */
 namespace Piwik;
 
 use Exception;
 use Piwik\Tracker\Cache;
 
+/**
+ * Contains helper functions that deal with the filesystem.
+ * 
+ */
 class Filesystem
 {
     /**
      * Called on Core install, update, plugin enable/disable
      * Will clear all cache that could be affected by the change in configuration being made
      */
-    public static function deleteAllCacheOnUpdate()
+    public static function deleteAllCacheOnUpdate($pluginName = false)
     {
-        AssetManager::removeMergedAssets();
+        AssetManager::getInstance()->removeMergedAssets($pluginName);
         View::clearCompiledTemplates();
         Cache::deleteTrackerCache();
     }
@@ -41,7 +43,7 @@ class Filesystem
      *
      * Apache-specific; for IIS @see web.config
      *
-     * @param string $path     without trailing slash
+     * @param string $path without trailing slash
      * @param bool $overwrite whether to overwrite an existing file or not
      * @param string $content
      */
@@ -63,7 +65,6 @@ class Filesystem
      *
      * @param string $filename
      * @return bool
-     *
      */
     public static function isValidFilename($filename)
     {
@@ -86,10 +87,14 @@ class Filesystem
     }
 
     /**
-     * Create directory if permitted
+     * Attempts to create a new directory. All errors are silenced.
+     * 
+     * _Note: This function does **not** create directories recursively._
      *
-     * @param string $path
-     * @param bool $denyAccess
+     * @param string $path The path of the directory to create.
+     * @param bool $denyAccess Whether to deny browser access to this new folder by
+     *                         creating an **.htaccess** file.
+     * @api
      */
     public static function mkdir($path, $denyAccess = true)
     {
@@ -161,13 +166,15 @@ class Filesystem
     }
 
     /**
-     * Recursively find pathnames that match a pattern
-     * @see glob()
+     * Recursively find pathnames that match a pattern.
+     * 
+     * See {@link http://php.net/manual/en/function.glob.php glob} for more info.
      *
-     * @param string $sDir      directory
-     * @param string $sPattern  pattern
-     * @param int $nFlags    glob() flags
-     * @return array
+     * @param string $sDir directory The directory to glob in.
+     * @param string $sPattern pattern The pattern to match paths against.
+     * @param int $nFlags `glob()` . See {@link http://php.net/manual/en/function.glob.php glob()}.
+     * @return array The list of paths that match the pattern.
+     * @api
      */
     public static function globr($sDir, $sPattern, $nFlags = null)
     {
@@ -188,13 +195,14 @@ class Filesystem
     }
 
     /**
-     * Recursively delete a directory
+     * Recursively deletes a directory.
      *
-     * @param string $dir            Directory name
-     * @param boolean $deleteRootToo  Delete specified top-level directory as well
-     * @param Closure|false $beforeUnlink A closure to execute before unlinking.
+     * @param string $dir Path of the directory to delete.
+     * @param boolean $deleteRootToo If true, `$dir` is deleted, otherwise just its contents.
+     * @param \Closure|false $beforeUnlink An optional closure to execute on a file path before unlinking.
+     * @api
      */
-    public static function unlinkRecursive($dir, $deleteRootToo, $beforeUnlink = false)
+    public static function unlinkRecursive($dir, $deleteRootToo, \Closure $beforeUnlink = null)
     {
         if (!$dh = @opendir($dir)) {
             return;
@@ -221,13 +229,15 @@ class Filesystem
     }
 
     /**
-     * Copy individual file from $source to $target.
+     * Copies a file from `$source` to `$dest`.
      *
-     * @param string $source      eg. './tmp/latest/index.php'
-     * @param string $dest        eg. './index.php'
-     * @param bool $excludePhp
-     * @throws Exception
-     * @return bool
+     * @param string $source A path to a file, eg. './tmp/latest/index.php'. The file must exist.
+     * @param string $dest A path to a file, eg. './index.php'. The file does not have to exist.
+     * @param bool $excludePhp Whether to avoid copying files if the file is related to PHP
+     *                         (includes .php, .tpl, .twig files).
+     * @throws Exception If the file cannot be copied.
+     * @return true
+     * @api
      */
     public static function copy($source, $dest, $excludePhp = false)
     {
@@ -252,11 +262,14 @@ class Filesystem
     }
 
     /**
-     * Copy recursively from $source to $target.
-     *
-     * @param string $source      eg. './tmp/latest'
-     * @param string $target      eg. '.'
-     * @param bool $excludePhp
+     * Copies the contents of a directory recursively from `$source` to `$target`.
+     * 
+     * @param string $source A directory or file to copy, eg. './tmp/latest'.
+     * @param string $target A directory to copy to, eg. '.'.
+     * @param bool $excludePhp Whether to avoid copying files if the file is related to PHP
+     *                         (includes .php, .tpl, .twig files).
+     * @throws Exception If a file cannot be copied.
+     * @api
      */
     public static function copyRecursive($source, $target, $excludePhp = false)
     {
@@ -280,5 +293,22 @@ class Filesystem
         } else {
             self::copy($source, $target, $excludePhp);
         }
+    }
+
+    /**
+     * Deletes the given file if it exists.
+     *
+     * @param  string $pathToFile
+     * @return bool   true in case of success or if file does not exist, false otherwise. It might fail in case the
+     *                file is not writeable.
+     * @api
+     */
+    public static function deleteFileIfExists($pathToFile)
+    {
+        if (!file_exists($pathToFile)) {
+            return true;
+        }
+
+        return @unlink($pathToFile);
     }
 }

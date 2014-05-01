@@ -5,23 +5,19 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Piwik
  *
  */
 namespace Piwik\Translate;
 
 use Exception;
 use Piwik\Filesystem;
-use Piwik\PluginsManager;
+use Piwik\Piwik;
 use Piwik\Translate\Filter\FilterAbstract;
 use Piwik\Translate\Validate\ValidateAbstract;
 
 /**
  * Writes clean translations to file
  *
- * @package Piwik
- * @package Piwik_Translate
  */
 class Writer
 {
@@ -74,8 +70,8 @@ class Writer
      */
     protected $filterMessages = array();
 
-    const UNFILTERED  = 'unfiltered';
-    const FILTERED    = 'filtered';
+    const UNFILTERED = 'unfiltered';
+    const FILTERED = 'filtered';
 
     protected $currentState = self::UNFILTERED;
 
@@ -83,20 +79,20 @@ class Writer
      * If $pluginName is given, Writer will be initialized for the given plugin if it exists
      * Otherwise it will be initialized for core translations
      *
-     * @param string  $language    ISO 639-1 alpha-2 language code
-     * @param string  $pluginName  optional plugin name
+     * @param string $language ISO 639-1 alpha-2 language code
+     * @param string $pluginName optional plugin name
      * @throws \Exception
      */
-    public function __construct($language, $pluginName=null)
+    public function __construct($language, $pluginName = null)
     {
         $this->setLanguage($language);
 
         if (!empty($pluginName)) {
-            $installedPlugins = PluginsManager::getInstance()->readPluginsDirectory();
+            $installedPlugins = \Piwik\Plugin\Manager::getInstance()->readPluginsDirectory();
 
             if (!in_array($pluginName, $installedPlugins)) {
 
-                throw new Exception(Piwik_TranslateException('General_ExceptionLanguageFileNotFound', array($pluginName)));
+                throw new Exception(Piwik::translate('General_ExceptionLanguageFileNotFound', array($pluginName)));
             }
 
             $this->pluginName = $pluginName;
@@ -104,14 +100,14 @@ class Writer
     }
 
     /**
-     * @param string $language  ISO 639-1 alpha-2 language code
+     * @param string $language ISO 639-1 alpha-2 language code
      *
      * @throws \Exception
      */
     public function setLanguage($language)
     {
         if (!preg_match('/^([a-z]{2,3}(-[a-z]{2,3})?)$/i', $language)) {
-            throw new Exception(Piwik_TranslateException('General_ExceptionLanguageFileNotFound', array($language)));
+            throw new Exception(Piwik::translate('General_ExceptionLanguageFileNotFound', array($language)));
         }
 
         $this->language = strtolower($language);
@@ -149,7 +145,7 @@ class Writer
     /**
      * Get translations from file
      *
-     * @param  string  $lang  ISO 639-1 alpha-2 language code
+     * @param  string $lang ISO 639-1 alpha-2 language code
      * @throws Exception
      * @return array   Array of translations ( plugin => ( key => translated string ) )
      */
@@ -189,11 +185,11 @@ class Writer
      * Get translation file path based on given params
      *
      * @param string $base Optional base directory (either 'lang' or 'tmp')
-     * @param string|null $lang  forced language
+     * @param string|null $lang forced language
      * @throws \Exception
      * @return string path
      */
-    protected function getTranslationPathBaseDirectory($base, $lang=null)
+    protected function getTranslationPathBaseDirectory($base, $lang = null)
     {
         if (empty($lang)) {
             $lang = $this->getLanguage();
@@ -371,7 +367,7 @@ class Writer
             $cleanedTranslations = $filter->filter($cleanedTranslations);
             $filteredData = $filter->getFilteredData();
             if (!empty($filteredData)) {
-                $this->filterMessages[] = get_class($filter) . " changed: " .var_export($filteredData, 1);
+                $this->filterMessages[] = get_class($filter) . " changed: " . var_export($filteredData, 1);
             }
         }
 

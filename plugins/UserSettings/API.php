@@ -5,16 +5,13 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik_Plugins
- * @package UserSettings
  */
 namespace Piwik\Plugins\UserSettings;
 
 use Piwik\Archive;
+use Piwik\DataTable;
 use Piwik\Metrics;
 use Piwik\Piwik;
-use Piwik\DataTable;
-use Piwik\Plugins\UserSettings\Archiver;
 
 /**
  * @see plugins/UserSettings/functions.php
@@ -25,20 +22,10 @@ require_once PIWIK_INCLUDE_PATH . '/plugins/UserSettings/functions.php';
  * The UserSettings API lets you access reports about your Visitors technical settings: browsers, browser types (rendering engine),
  * operating systems, plugins supported in their browser, Screen resolution and Screen types (normal, widescreen, dual screen or mobile).
  *
- * @package UserSettings
+ * @method static \Piwik\Plugins\UserSettings\API getInstance()
  */
-class API
+class API extends \Piwik\Plugin\API
 {
-    static private $instance = null;
-
-    static public function getInstance()
-    {
-        if (self::$instance == null) {
-            self::$instance = new self;
-        }
-        return self::$instance;
-    }
-
     protected function getDataTable($name, $idSite, $period, $date, $segment)
     {
         Piwik::checkUserHasViewAccess($idSite);
@@ -78,13 +65,13 @@ class API
 
     /**
      * Gets a DataTable displaying number of visits by operating system family. The operating
-     * system families are listed in /libs/UserAgentParser/UserAgentParser.php.
+     * system families are listed in vendor piwik/device-detector.
      */
     public function getOSFamily($idSite, $period, $date, $segment = false)
     {
         $dataTable = $this->getOS($idSite, $period, $date, $segment, $addShortLabel = false);
         $dataTable->filter('GroupBy', array('label', __NAMESPACE__ . '\getOSFamily'));
-        $dataTable->queueFilter('ColumnCallbackReplace', array('label', 'Piwik_Translate'));
+        $dataTable->queueFilter('ColumnCallbackReplace', array('label', array('\\Piwik\\Piwik','translate')));
         return $dataTable;
     }
 
@@ -102,7 +89,7 @@ class API
             array('logo', __NAMESPACE__ . '\getDeviceTypeImg', null, array('label')));
 
         // translate the labels
-        $dataTable->queueFilter('ColumnCallbackReplace', array('label', 'Piwik_Translate'));
+        $dataTable->queueFilter('ColumnCallbackReplace', array('label', array('\\Piwik\\Piwik','translate')));
 
         return $dataTable;
     }
@@ -185,17 +172,17 @@ class API
 
         // check whether given tables are arrays
         if ($dataTable instanceof DataTable\Map) {
-            $tableArray = $dataTable->getArray();
-            $browserTypesArray = $browserTypes->getArray();
-            $visitSumsArray = $visitsSums->getArray();
+            $dataTableMap = $dataTable->getDataTables();
+            $browserTypesArray = $browserTypes->getDataTables();
+            $visitSumsArray = $visitsSums->getDataTables();
         } else {
-            $tableArray = array($dataTable);
+            $dataTableMap = array($dataTable);
             $browserTypesArray = array($browserTypes);
             $visitSumsArray = array($visitsSums);
         }
 
         // walk through the results and calculate the percentage
-        foreach ($tableArray as $key => $table) {
+        foreach ($dataTableMap as $key => $table) {
             // get according browserType table
             foreach ($browserTypesArray AS $k => $browsers) {
                 if ($k == $key) {
@@ -230,7 +217,9 @@ class API
 
             // When Truncate filter is applied, it will call AddSummaryRow which tries to sum all rows.
             // We tell the object to skip the column nb_visits_percentage when aggregating (since it's not correct to sum % values)
-            $table->setColumnAggregationOperation('nb_visits_percentage', 'skip');
+            $columnAggregationOps = $table->getMetadata(DataTable::COLUMN_AGGREGATION_OPS_METADATA_NAME);
+            $columnAggregationOps['nb_visits_percentage'] = 'skip';
+            $table->setMetadata(DataTable::COLUMN_AGGREGATION_OPS_METADATA_NAME, $columnAggregationOps);
 
             // The filter must be applied now so that the new column can
             // be sorted by the generic filters (applied right after this loop exits)

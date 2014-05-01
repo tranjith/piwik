@@ -5,19 +5,19 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Updates
  */
+
+namespace Piwik\Updates;
+
 use Piwik\Common;
 use Piwik\Updater;
 use Piwik\Updates;
 
 /**
- * @package Updates
  */
-class Piwik_Updates_0_6_rc1 extends Updates
+class Updates_0_6_rc1 extends Updates
 {
-    static function getSql($schema = 'Myisam')
+    static function getSql()
     {
         $defaultTimezone = 'UTC';
         $defaultCurrency = 'USD';
@@ -47,8 +47,8 @@ class Piwik_Updates_0_6_rc1 extends Updates
         );
         $disabledPlugins = array();
         foreach ($pluginsToDisableMessage as $pluginToDisable => $warningMessage) {
-            if (\Piwik\PluginsManager::getInstance()->isPluginActivated($pluginToDisable)) {
-                \Piwik\PluginsManager::getInstance()->deactivatePlugin($pluginToDisable);
+            if (\Piwik\Plugin\Manager::getInstance()->isPluginActivated($pluginToDisable)) {
+                \Piwik\Plugin\Manager::getInstance()->deactivatePlugin($pluginToDisable);
                 $disabledPlugins[] = $warningMessage;
             }
         }
@@ -58,7 +58,7 @@ class Piwik_Updates_0_6_rc1 extends Updates
 
         // Outputs warning message, pointing users to the plugin download page
         if (!empty($disabledPlugins)) {
-            throw new Exception("The following plugins were disabled during the upgrade:"
+            throw new \Exception("The following plugins were disabled during the upgrade:"
                 . "<ul><li>" .
                 implode('</li><li>', $disabledPlugins) .
                 "</li></ul>");

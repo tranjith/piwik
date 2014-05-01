@@ -5,20 +5,17 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik_Plugins
- * @package Piwik_MobileMessaging_ReportRenderer
  */
 namespace Piwik\Plugins\MobileMessaging\ReportRenderer;
 
 use Piwik\Common;
 use Piwik\Plugins\MultiSites\API;
-use Piwik\View;
 use Piwik\ReportRenderer;
 use Piwik\Site;
+use Piwik\View;
 
 /**
  *
- * @package Piwik_MobileMessaging_ReportRenderer
  */
 class Sms extends ReportRenderer
 {
@@ -70,21 +67,21 @@ class Sms extends ReportRenderer
             $evolutionMetrics[] = $metricSettings[API::METRIC_EVOLUTION_COL_NAME_KEY];
         }
 
-	$floatRegex = self::FLOAT_REGEXP;
+        $floatRegex = self::FLOAT_REGEXP;
         // no decimal for all metrics to shorten SMS content (keeps the monetary sign for revenue metrics)
         $reportData->filter(
             'ColumnCallbackReplace',
             array(
-                array_merge(array_keys($multiSitesAPIMetrics), $evolutionMetrics),
-                function($value) use ($floatRegex) {
-                    return preg_replace_callback(
-                        $floatRegex,
-                        function($matches) {
-                            return round($matches[0]);
-                        },
-                        $value
-                    );
-                }
+                 array_merge(array_keys($multiSitesAPIMetrics), $evolutionMetrics),
+                 function ($value) use ($floatRegex) {
+                     return preg_replace_callback(
+                         $floatRegex,
+                         function ($matches) {
+                             return round($matches[0]);
+                         },
+                         $value
+                     );
+                 }
             )
         );
 
@@ -95,11 +92,11 @@ class Sms extends ReportRenderer
         $reportData->filter(
             'ColumnCallbackReplace',
             array(
-                $evolutionMetrics,
-                function($value) use ($floatRegex) {
-                    $matched = preg_match($floatRegex, $value, $matches);
-                    return $matched ? sprintf("%+d",$matches[0]) : $value;
-                }
+                 $evolutionMetrics,
+                 function ($value) use ($floatRegex) {
+                     $matched = preg_match($floatRegex, $value, $matches);
+                     return $matched ? sprintf("%+d", $matches[0]) : $value;
+                 }
             )
         );
 

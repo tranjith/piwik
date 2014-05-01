@@ -5,17 +5,13 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Piwik
  */
 namespace Piwik\Period;
 
 use Piwik\Period;
-use Piwik\Period\Day;
+use Piwik\Piwik;
 
 /**
- * @package Piwik
- * @subpackage Period
  */
 class Month extends Period
 {
@@ -29,7 +25,7 @@ class Month extends Period
     public function getLocalizedShortString()
     {
         //"Aug 09"
-        $out = $this->getDateStart()->getLocalized(Piwik_Translate('CoreHome_ShortMonthFormat'));
+        $out = $this->getDateStart()->getLocalized(Piwik::translate('CoreHome_ShortMonthFormat'));
         return $out;
     }
 
@@ -41,7 +37,7 @@ class Month extends Period
     public function getLocalizedLongString()
     {
         //"August 2009"
-        $out = $this->getDateStart()->getLocalized(Piwik_Translate('CoreHome_LongMonthFormat'));
+        $out = $this->getDateStart()->getLocalized(Piwik::translate('CoreHome_LongMonthFormat'));
         return $out;
     }
 

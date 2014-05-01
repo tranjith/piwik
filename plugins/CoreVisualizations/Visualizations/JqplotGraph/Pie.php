@@ -5,14 +5,12 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik_Plugins
- * @package CoreVisualizations
  */
 
 namespace Piwik\Plugins\CoreVisualizations\Visualizations\JqplotGraph;
 
-use Piwik\Plugins\CoreVisualizations\Visualizations\JqplotGraph;
 use Piwik\Plugins\CoreVisualizations\JqplotDataGenerator;
+use Piwik\Plugins\CoreVisualizations\Visualizations\JqplotGraph;
 
 /**
  * Visualization that renders HTML for a Pie graph using jqPlot.
@@ -20,29 +18,37 @@ use Piwik\Plugins\CoreVisualizations\JqplotDataGenerator;
 class Pie extends JqplotGraph
 {
     const ID = 'graphPie';
+    const FOOTER_ICON       = 'plugins/Zeitgeist/images/chart_pie.png';
+    const FOOTER_ICON_TITLE = 'General_Piechart';
 
-    public function __construct($view)
+    public static function getDefaultConfig()
     {
-        parent::__construct($view);
-        $view->visualization_properties->show_all_ticks = true;
-        $view->datatable_js_type = 'JqplotPieGraphDataTable';
+        $config = new Config();
+        $config->max_graph_elements = 6;
+        $config->allow_multi_select_series_picker = false;
 
-        // make sure only one non-label column is displayed
-        $view->after_data_loaded_functions[] = function ($dataTable) use ($view) {
-            $metricColumn = reset($view->columns_to_display);
-            if ($metricColumn == 'label') {
-                $metricColumn = next($view->columns_to_display);
-            }
-            $view->columns_to_display = array($metricColumn ?: 'nb_visits');
-        };
+        return $config;
     }
 
-    public static function getDefaultPropertyValues()
+    public function beforeRender()
     {
-        $result = parent::getDefaultPropertyValues();
-        $result['visualization_properties']['graph']['max_graph_elements'] = 6;
-        $result['visualization_properties']['graph']['allow_multi_select_series_picker'] = false;
-        return $result;
+        parent::beforeRender();
+
+        $this->config->show_all_ticks = true;
+        $this->config->datatable_js_type = 'JqplotPieGraphDataTable';
+    }
+
+    public function afterAllFiltersAreApplied()
+    {
+        parent::afterAllFiltersAreApplied();
+
+        $metricColumn = reset($this->config->columns_to_display);
+
+        if ($metricColumn == 'label') {
+            $metricColumn = next($this->config->columns_to_display);
+        }
+
+        $this->config->columns_to_display = array($metricColumn ? : 'nb_visits');
     }
 
     protected function makeDataGenerator($properties)

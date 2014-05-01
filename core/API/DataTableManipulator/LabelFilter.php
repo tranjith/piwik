@@ -5,15 +5,13 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Piwik
  */
 namespace Piwik\API\DataTableManipulator;
 
+use Piwik\API\DataTableManipulator;
 use Piwik\Common;
 use Piwik\DataTable;
 use Piwik\DataTable\Row;
-use Piwik\API\DataTableManipulator;
 
 /**
  * This class is responsible for handling the label parameter that can be
@@ -22,9 +20,6 @@ use Piwik\API\DataTableManipulator;
  *
  * The labels passed to this class should be urlencoded.
  * Some reports use recursive labels (e.g. action reports). Use > to join them.
- *
- * @package Piwik
- * @subpackage Piwik_API
  */
 class LabelFilter extends DataTableManipulator
 {
@@ -42,8 +37,8 @@ class LabelFilter extends DataTableManipulator
      * for the recursive search. If the label is not recursive, these parameters
      * are not needed.
      *
-     * @param string $labels      the labels to search for
-     * @param DataTable $dataTable  the data table to be filtered
+     * @param string $labels the labels to search for
+     * @param DataTable $dataTable the data table to be filtered
      * @param bool $addLabelIndex Whether to add label_index metadata describing which
      *                            label a row corresponds to.
      * @return DataTable
@@ -103,9 +98,11 @@ class LabelFilter extends DataTableManipulator
      *
      * @param $request
      */
-    protected function manipulateSubtableRequest(&$request)
+    protected function manipulateSubtableRequest($request)
     {
         unset($request['label']);
+
+        return $request;
     }
 
     /**

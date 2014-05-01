@@ -10,7 +10,7 @@ use Piwik\Date;
 /**
  * Adds one site and tracks one visit with several pageviews.
  */
-class Test_Piwik_Fixture_OneVisitSeveralPageViews extends Test_Piwik_BaseFixture
+class Test_Piwik_Fixture_OneVisitSeveralPageViews extends Fixture
 {
     public $dateTime = '2010-03-06 11:22:33';
     public $idSite = 1;
@@ -28,7 +28,9 @@ class Test_Piwik_Fixture_OneVisitSeveralPageViews extends Test_Piwik_BaseFixture
 
     private function setUpWebsitesAndGoals()
     {
-        self::createWebsite($this->dateTime);
+        if (!self::siteCreated($idSite = 1)) {
+            self::createWebsite($this->dateTime);
+        }
     }
 
     private function trackVisits()
@@ -51,6 +53,11 @@ class Test_Piwik_Fixture_OneVisitSeveralPageViews extends Test_Piwik_BaseFixture
         $t->setForceVisitDateTime(Date::factory($dateTime)->addHour(0.3)->getDatetime());
         $t->setGenerationTime(153);
         self::checkResponse($t->doTrackPageView('incredible parent title! <>,; / subtitle <>,;'));
+
+        $t->setUrl('http://example.org/dir/file.php?foo=bar&foo2=bar2');
+        $t->setForceVisitDateTime(Date::factory($dateTime)->addHour(0.31)->getDatetime());
+        $t->setGenerationTime(153);
+        self::checkResponse($t->doTrackEvent('Category', 'Action', 'Name', 11111));
 
         $t->setUrl('http://example.org/dir2/file.php?foo=bar&foo2=bar');
         $t->setForceVisitDateTime(Date::factory($dateTime)->addHour(0.4)->getDatetime());

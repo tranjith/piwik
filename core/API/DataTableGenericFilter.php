@@ -5,8 +5,6 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Piwik
  */
 namespace Piwik\API;
 
@@ -15,10 +13,6 @@ use Piwik\Common;
 use Piwik\DataTable;
 use Piwik\DataTable\Filter\AddColumnsProcessedMetricsGoal;
 
-/**
- * @package Piwik
- * @subpackage Piwik_API
- */
 class DataTableGenericFilter
 {
     private static $genericFiltersInfo = null;
@@ -106,10 +100,9 @@ class DataTableGenericFilter
     protected function applyGenericFilters($datatable)
     {
         if ($datatable instanceof DataTable\Map) {
-            $tables = $datatable->getArray();
-            $filterWasApplied = false;
+            $tables = $datatable->getDataTables();
             foreach ($tables as $table) {
-                $filterWasApplied = $this->applyGenericFilters($table);
+                $this->applyGenericFilters($table);
             }
             return;
         }

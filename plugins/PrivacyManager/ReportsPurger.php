@@ -5,8 +5,6 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik_Plugins
- * @package PrivacyManager
  */
 namespace Piwik\Plugins\PrivacyManager;
 
@@ -118,7 +116,7 @@ class ReportsPurger
                     if (!empty($where)) {
                         $where = "WHERE $where";
                     }
-                    Db::deleteAllRows($table, $where, $this->maxRowsToDeletePerQuery);
+                    Db::deleteAllRows($table, $where, "idarchive ASC", $this->maxRowsToDeletePerQuery);
                 }
 
                 if ($optimize) {
@@ -133,7 +131,7 @@ class ReportsPurger
             if ($this->keepBasicMetrics == 1 && !empty($this->metricsToKeep)) {
                 $where = "WHERE name NOT IN ('" . implode("','", $this->metricsToKeep) . "') AND name NOT LIKE 'done%'";
                 foreach ($oldNumericTables as $table) {
-                    Db::deleteAllRows($table, $where, $this->maxRowsToDeletePerQuery);
+                    Db::deleteAllRows($table, $where, "idarchive ASC", $this->maxRowsToDeletePerQuery);
                 }
 
                 if ($optimize) {
@@ -248,7 +246,7 @@ class ReportsPurger
         $toRemoveMonth = (int)$toRemoveDate->toString('m');
 
         return $reportDateYear < $toRemoveYear
-            || ($reportDateYear == $toRemoveYear && $reportDateMonth <= $toRemoveMonth);
+        || ($reportDateYear == $toRemoveYear && $reportDateMonth <= $toRemoveMonth);
     }
 
     private function getNumericTableDeleteCount($table)

@@ -25,13 +25,13 @@ define('PIWIK_DOCUMENT_ROOT', '..');
 define('PIWIK_USER_PATH', '..');
 
 require_once PIWIK_INCLUDE_PATH . '/libs/upgradephp/upgrade.php';
-require_once PIWIK_INCLUDE_PATH . '/core/Piwik.php';
-require_once PIWIK_INCLUDE_PATH . '/core/ProxyHttp.php';
+require_once PIWIK_INCLUDE_PATH . '/core/Loader.php';
 
 $file = '../piwik.js';
 
-// There is no cache buster parameter so we don't set Expires: header 
-$expireFarFuture = false;
-ProxyHttp::serverStaticFile($file, "application/javascript; charset=UTF-8", $expireFarFuture);
+
+$daysExpireFarFuture = 10;
+
+ProxyHttp::serverStaticFile($file, "application/javascript; charset=UTF-8", $daysExpireFarFuture);
 
 exit;

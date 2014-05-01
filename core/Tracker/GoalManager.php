@@ -5,23 +5,17 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Piwik
  */
 namespace Piwik\Tracker;
 
 use Exception;
-use Piwik\Config;
 use Piwik\Common;
+use Piwik\Config;
+use Piwik\Piwik;
+use Piwik\Plugins\CustomVariables\CustomVariables;
 use Piwik\Tracker;
-use Piwik\Tracker\Action;
-use Piwik\Tracker\Cache;
-use Piwik\Tracker\Referrer;
-use Piwik\Tracker\Request;
 
 /**
- * @package Piwik
- * @subpackage Tracker
  */
 class GoalManager
 {
@@ -147,9 +141,9 @@ class GoalManager
         foreach ($goals as $goal) {
             $attribute = $goal['match_attribute'];
             // if the attribute to match is not the type of the current action
-            if (($actionType == Action::TYPE_ACTION_URL && $attribute != 'url' && $attribute != 'title')
-                || ($actionType == Action::TYPE_DOWNLOAD && $attribute != 'file')
-                || ($actionType == Action::TYPE_OUTLINK && $attribute != 'external_website')
+            if (   (($attribute == 'url' || $attribute == 'title') && $actionType != Action::TYPE_PAGE_URL)
+                || ($attribute == 'file' && $actionType != Action::TYPE_DOWNLOAD)
+                || ($attribute == 'external_website' && $actionType != Action::TYPE_OUTLINK)
                 || ($attribute == 'manually')
             ) {
                 continue;
@@ -162,40 +156,7 @@ class GoalManager
             }
             $pattern_type = $goal['pattern_type'];
 
-            switch ($pattern_type) {
-                case 'regex':
-                    $pattern = $goal['pattern'];
-                    if (strpos($pattern, '/') !== false
-                        && strpos($pattern, '\\/') === false
-                    ) {
-                        $pattern = str_replace('/', '\\/', $pattern);
-                    }
-                    $pattern = '/' . $pattern . '/';
-                    if (!$goal['case_sensitive']) {
-                        $pattern .= 'i';
-                    }
-                    $match = (@preg_match($pattern, $url) == 1);
-                    break;
-                case 'contains':
-                    if ($goal['case_sensitive']) {
-                        $matched = strpos($url, $goal['pattern']);
-                    } else {
-                        $matched = stripos($url, $goal['pattern']);
-                    }
-                    $match = ($matched !== false);
-                    break;
-                case 'exact':
-                    if ($goal['case_sensitive']) {
-                        $matched = strcmp($goal['pattern'], $url);
-                    } else {
-                        $matched = strcasecmp($goal['pattern'], $url);
-                    }
-                    $match = ($matched == 0);
-                    break;
-                default:
-                    throw new Exception(Piwik_TranslateException('General_ExceptionInvalidGoalPattern', array($pattern_type)));
-                    break;
-            }
+            $match = $this->isUrlMatchingGoal($goal, $pattern_type, $url);
             if ($match) {
                 $goal['url'] = $decodedActionUrl;
                 $this->convertedGoals[] = $goal;
@@ -216,7 +177,7 @@ class GoalManager
         $goal = $goals[$this->idGoal];
 
         $url = $this->request->getParam('url');
-        $goal['url'] = Action::excludeQueryParametersFromUrl($url, $idSite);
+        $goal['url'] = PageUrl::excludeQueryParametersFromUrl($url, $idSite);
         $goal['revenue'] = $this->getRevenue($this->request->getGoalRevenue($goal['revenue']));
         $this->convertedGoals[] = $goal;
         return true;
@@ -232,10 +193,10 @@ class GoalManager
      */
     public function recordGoals($idSite, $visitorInformation, $visitCustomVariables, $action)
     {
-        $refererTimestamp = $this->request->getParam('_refts');
-        $refererUrl = $this->request->getParam('_ref');
-        $refererCampaignName = trim(urldecode($this->request->getParam('_rcn')));
-        $refererCampaignKeyword = trim(urldecode($this->request->getParam('_rck')));
+        $referrerTimestamp = $this->request->getParam('_refts');
+        $referrerUrl = $this->request->getParam('_ref');
+        $referrerCampaignName = trim(urldecode($this->request->getParam('_rcn')));
+        $referrerCampaignKeyword = trim(urldecode($this->request->getParam('_rck')));
         $browserLanguage = $this->request->getBrowserLanguage();
 
         $location_country = isset($visitorInformation['location_country'])
@@ -266,7 +227,11 @@ class GoalManager
         }
 
         // Copy Custom Variables from Visit row to the Goal conversion
-        for ($i = 1; $i <= Tracker::MAX_CUSTOM_VARIABLES; $i++) {
+        // Otherwise, set the Custom Variables found in the cookie sent with this request
+        $goal += $visitCustomVariables;
+        $maxCustomVariables = CustomVariables::getMaxCustomVariables();
+
+        for ($i = 1; $i <= $maxCustomVariables; $i++) {
             if (isset($visitorInformation['custom_var_k' . $i])
                 && strlen($visitorInformation['custom_var_k' . $i])
             ) {
@@ -278,8 +243,6 @@ class GoalManager
                 $goal['custom_var_v' . $i] = $visitorInformation['custom_var_v' . $i];
             }
         }
-        // Otherwise, set the Custom Variables found in the cookie sent with this request
-        $goal += $visitCustomVariables;
 
         // Attributing the correct Referrer to this conversion.
         // Priority order is as follows:
@@ -296,30 +259,32 @@ class GoalManager
 
         // 0) In some (unknown!?) cases the campaign is not found in the attribution cookie, but the URL ref was found.
         //    In this case we look up if the current visit is credited to a campaign and will credit this campaign rather than the URL ref (since campaigns have higher priority)
-        if (empty($refererCampaignName)
+        if (empty($referrerCampaignName)
             && $type == Common::REFERRER_TYPE_CAMPAIGN
             && !empty($name)
         ) {
             // Use default values per above
         } // 1) Campaigns from 1st party cookie
-        elseif (!empty($refererCampaignName)) {
+        elseif (!empty($referrerCampaignName)) {
             $type = Common::REFERRER_TYPE_CAMPAIGN;
-            $name = $refererCampaignName;
-            $keyword = $refererCampaignKeyword;
-            $time = $refererTimestamp;
+            $name = $referrerCampaignName;
+            $keyword = $referrerCampaignKeyword;
+            $time = $referrerTimestamp;
         } // 2) Referrer URL parsing
-        elseif (!empty($refererUrl)) {
+        elseif (!empty($referrerUrl)) {
             $referrer = new Referrer();
-            $referrer = $referrer->getRefererInformation($refererUrl, $currentUrl = '', $idSite);
+            $referrer = $referrer->getReferrerInformation($referrerUrl, $currentUrl = '', $idSite);
 
-            // if the parsed referer is interesting enough, ie. website or search engine
+            // if the parsed referrer is interesting enough, ie. website or search engine
             if (in_array($referrer['referer_type'], array(Common::REFERRER_TYPE_SEARCH_ENGINE, Common::REFERRER_TYPE_WEBSITE))) {
                 $type = $referrer['referer_type'];
                 $name = $referrer['referer_name'];
                 $keyword = $referrer['referer_keyword'];
-                $time = $refererTimestamp;
+                $time = $referrerTimestamp;
             }
         }
+        $this->setCampaignValuesToLowercase($type, $name, $keyword);
+
         $goal += array(
             'referer_type'              => $type,
             'referer_name'              => $name,
@@ -354,40 +319,33 @@ class GoalManager
      * Records an Ecommerce conversion in the DB. Deals with Items found in the request.
      * Will deal with 2 types of conversions: Ecommerce Order and Ecommerce Cart update (Add to cart, Update Cart etc).
      *
-     * @param array $goal
-     * @param array $visitorInformation
+     * @param array $conversion
+     * @param array $visitInformation
      */
-    protected function recordEcommerceGoal($goal, $visitorInformation)
+    protected function recordEcommerceGoal($conversion, $visitInformation)
     {
-        // Is the transaction a Cart Update or an Ecommerce order?
-        $updateWhere = array(
-            'idvisit' => $visitorInformation['idvisit'],
-            'idgoal'  => self::IDGOAL_CART,
-            'buster'  => 0,
-        );
-
         if ($this->isThereExistingCartInVisit) {
             Common::printDebug("There is an existing cart for this visit");
         }
         if ($this->isGoalAnOrder) {
-            $goal['idgoal'] = self::IDGOAL_ORDER;
-            $goal['idorder'] = $this->orderId;
-            $goal['buster'] = Common::hashStringToInt($this->orderId);
-            $goal['revenue_subtotal'] = $this->getRevenue($this->request->getParam('ec_st'));
-            $goal['revenue_tax'] = $this->getRevenue($this->request->getParam('ec_tx'));
-            $goal['revenue_shipping'] = $this->getRevenue($this->request->getParam('ec_sh'));
-            $goal['revenue_discount'] = $this->getRevenue($this->request->getParam('ec_dt'));
+            $conversion['idgoal'] = self::IDGOAL_ORDER;
+            $conversion['idorder'] = $this->orderId;
+            $conversion['buster'] = Common::hashStringToInt($this->orderId);
+            $conversion['revenue_subtotal'] = $this->getRevenue($this->request->getParam('ec_st'));
+            $conversion['revenue_tax'] = $this->getRevenue($this->request->getParam('ec_tx'));
+            $conversion['revenue_shipping'] = $this->getRevenue($this->request->getParam('ec_sh'));
+            $conversion['revenue_discount'] = $this->getRevenue($this->request->getParam('ec_dt'));
 
             $debugMessage = 'The conversion is an Ecommerce order';
         } // If Cart update, select current items in the previous Cart
         else {
-            $goal['buster'] = 0;
-            $goal['idgoal'] = self::IDGOAL_CART;
+            $conversion['buster'] = 0;
+            $conversion['idgoal'] = self::IDGOAL_CART;
             $debugMessage = 'The conversion is an Ecommerce Cart Update';
         }
-        $goal['revenue'] = $this->getRevenue($this->request->getGoalRevenue($defaultRevenue = 0));
+        $conversion['revenue'] = $this->getRevenue($this->request->getGoalRevenue($defaultRevenue = 0));
 
-        Common::printDebug($debugMessage . ':' . var_export($goal, true));
+        Common::printDebug($debugMessage . ':' . var_export($conversion, true));
 
         // INSERT or Sync items in the Cart / Order for this visit & order
         $items = $this->getEcommerceItemsFromRequest();
@@ -399,17 +357,35 @@ class GoalManager
         foreach ($items as $item) {
             $itemsCount += $item[self::INTERNAL_ITEM_QUANTITY];
         }
-        $goal['items'] = $itemsCount;
+        $conversion['items'] = $itemsCount;
 
-        // If there is already a cart for this visit
-        // 1) If conversion is Order, we update the cart into an Order
-        // 2) If conversion is Cart Update, we update the cart
-        $recorded = $this->recordGoal($goal, $this->isThereExistingCartInVisit, $updateWhere);
-        if ($recorded) {
-            $this->recordEcommerceItems($goal, $items);
+        if($this->isThereExistingCartInVisit) {
+            $updateWhere = array(
+                'idvisit' => $visitInformation['idvisit'],
+                'idgoal'  => self::IDGOAL_CART,
+                'buster'  => 0,
+            );
+            $recorded = $this->updateExistingConversion($conversion, $updateWhere);
+        } else {
+            $recorded = $this->insertNewConversion($conversion, $visitInformation);
         }
 
-        Piwik_PostEvent('Tracker.recordEcommerceGoal', array($goal));
+        if ($recorded) {
+            $this->recordEcommerceItems($conversion, $items, $visitInformation);
+        }
+
+        /**
+         * Triggered after successfully persisting an ecommerce conversion.
+         * 
+         * _Note: Subscribers should be wary of doing any expensive computation here as it may slow
+         * the tracker down._
+         * 
+         * @param array $conversion The conversion entity that was just persisted. See what information
+         *                          it contains [here](/guides/persistence-and-the-mysql-backend#conversions).
+         * @param array $visitInformation The visit entity that we are tracking a conversion for. See what
+         *                                information it contains [here](/guides/persistence-and-the-mysql-backend#visits).
+         */
+        Piwik::postEvent('Tracker.recordEcommerceGoal', array($conversion, $visitInformation));
     }
 
     /**
@@ -628,20 +604,20 @@ class GoalManager
             $actionsToLookupAllItems = array_merge($actionsToLookupAllItems, $actionsToLookup);
         }
 
-        $actionsLookedUp = Action::loadActionId($actionsToLookupAllItems);
+        $actionsLookedUp = TableLogAction::loadIdsAction($actionsToLookupAllItems);
 
         // Replace SKU, name & category by their ID action
         foreach ($cleanedItems as $index => &$item) {
             // SKU
-            $item[0] = $actionsLookedUp[$index * $columnsInEachRow + 0][2];
+            $item[0] = $actionsLookedUp[$index * $columnsInEachRow + 0];
             // Name
-            $item[1] = $actionsLookedUp[$index * $columnsInEachRow + 1][2];
+            $item[1] = $actionsLookedUp[$index * $columnsInEachRow + 1];
             // Categories
-            $item[2] = $actionsLookedUp[$index * $columnsInEachRow + 2][2];
-            $item[3] = $actionsLookedUp[$index * $columnsInEachRow + 3][2];
-            $item[4] = $actionsLookedUp[$index * $columnsInEachRow + 4][2];
-            $item[5] = $actionsLookedUp[$index * $columnsInEachRow + 5][2];
-            $item[6] = $actionsLookedUp[$index * $columnsInEachRow + 6][2];
+            $item[2] = $actionsLookedUp[$index * $columnsInEachRow + 2];
+            $item[3] = $actionsLookedUp[$index * $columnsInEachRow + 3];
+            $item[4] = $actionsLookedUp[$index * $columnsInEachRow + 4];
+            $item[5] = $actionsLookedUp[$index * $columnsInEachRow + 5];
+            $item[6] = $actionsLookedUp[$index * $columnsInEachRow + 6];
         }
         return $cleanedItems;
     }
@@ -753,68 +729,71 @@ class GoalManager
     {
         foreach ($this->convertedGoals as $convertedGoal) {
             Common::printDebug("- Goal " . $convertedGoal['idgoal'] . " matched. Recording...");
-            $newGoal = $goal;
-            $newGoal['idgoal'] = $convertedGoal['idgoal'];
-            $newGoal['url'] = $convertedGoal['url'];
-            $newGoal['revenue'] = $this->getRevenue($convertedGoal['revenue']);
+            $conversion = $goal;
+            $conversion['idgoal'] = $convertedGoal['idgoal'];
+            $conversion['url'] = $convertedGoal['url'];
+            $conversion['revenue'] = $this->getRevenue($convertedGoal['revenue']);
 
             if (!is_null($action)) {
-                $newGoal['idaction_url'] = $action->getIdActionUrl();
-                $newGoal['idlink_va'] = $action->getIdLinkVisitAction();
+                $conversion['idaction_url'] = $action->getIdActionUrl();
+                $conversion['idlink_va'] = $action->getIdLinkVisitAction();
             }
 
             // If multiple Goal conversions per visit, set a cache buster
-            $newGoal['buster'] = $convertedGoal['allow_multiple'] == 0
+            $conversion['buster'] = $convertedGoal['allow_multiple'] == 0
                 ? '0'
                 : $visitorInformation['visit_last_action_time'];
 
-            $this->recordGoal($newGoal);
+            $this->insertNewConversion($conversion, $visitorInformation);
 
-            Piwik_PostEvent('Tracker.recordStandardGoals', array($newGoal));
+            /**
+             * Triggered after successfully recording a non-ecommerce conversion.
+             * 
+             * _Note: Subscribers should be wary of doing any expensive computation here as it may slow
+             * the tracker down._
+             * 
+             * @param array $conversion The conversion entity that was just persisted. See what information
+             *                          it contains [here](/guides/persistence-and-the-mysql-backend#conversions).
+             */
+            Piwik::postEvent('Tracker.recordStandardGoals', array($conversion));
         }
     }
 
     /**
      * Helper function used by other record* methods which will INSERT or UPDATE the conversion in the DB
      *
-     * @param array $newGoal
-     * @param bool $mustUpdateNotInsert If set to true, the previous conversion will be UPDATEd. This is used for the Cart Update conversion (only one cart per visit)
-     * @param array $updateWhere
+     * @param array $conversion
+     * @param array $visitInformation
      * @return bool
      */
-    protected function recordGoal($newGoal, $mustUpdateNotInsert = false, $updateWhere = array())
+    protected function insertNewConversion($conversion, $visitInformation)
     {
-        $newGoalDebug = $newGoal;
+        /**
+         * Triggered before persisting a new [conversion entity](/guides/persistence-and-the-mysql-backend#conversions).
+         * 
+         * This event can be used to modify conversion information or to add new information to be persisted.
+         * 
+         * @param array $conversion The conversion entity. Read [this](/guides/persistence-and-the-mysql-backend#conversions)
+         *                          to see what it contains.
+         * @param array $visitInformation The visit entity that we are tracking a conversion for. See what
+         *                                information it contains [here](/guides/persistence-and-the-mysql-backend#visits).
+         * @param \Piwik\Tracker\Request $request An object describing the tracking request being processed.
+         */
+        Piwik::postEvent('Tracker.newConversionInformation', array(&$conversion, $visitInformation, $this->request));
+
+        $newGoalDebug = $conversion;
         $newGoalDebug['idvisitor'] = bin2hex($newGoalDebug['idvisitor']);
         Common::printDebug($newGoalDebug);
 
-        $fields = implode(", ", array_keys($newGoal));
-        $bindFields = Common::getSqlStringFieldsArray($newGoal);
+        $fields = implode(", ", array_keys($conversion));
+        $bindFields = Common::getSqlStringFieldsArray($conversion);
+        $sql = 'INSERT IGNORE INTO ' . Common::prefixTable('log_conversion') . "
+                ($fields) VALUES ($bindFields) ";
+        $bind = array_values($conversion);
+        $result = Tracker::getDatabase()->query($sql, $bind);
 
-        if ($mustUpdateNotInsert) {
-            $updateParts = $sqlBind = $updateWhereParts = array();
-            foreach ($newGoal AS $name => $value) {
-                $updateParts[] = $name . " = ?";
-                $sqlBind[] = $value;
-            }
-            foreach ($updateWhere as $name => $value) {
-                $updateWhereParts[] = $name . " = ?";
-                $sqlBind[] = $value;
-            }
-            $sql = 'UPDATE  ' . Common::prefixTable('log_conversion') . "
-					SET " . implode($updateParts, ', ') . "
-						WHERE " . implode($updateWhereParts, ' AND ');
-            Tracker::getDatabase()->query($sql, $sqlBind);
-            return true;
-        } else {
-            $sql = 'INSERT IGNORE INTO ' . Common::prefixTable('log_conversion') . "
-					($fields) VALUES ($bindFields) ";
-            $bind = array_values($newGoal);
-            $result = Tracker::getDatabase()->query($sql, $bind);
-
-            // If a record was inserted, we return true
-            return Tracker::getDatabase()->rowCount($result) > 0;
-        }
+        // If a record was inserted, we return true
+        return Tracker::getDatabase()->rowCount($result) > 0;
     }
 
     /**
@@ -835,5 +814,92 @@ class GoalManager
             (string)$row[self::INTERNAL_ITEM_PRICE],
             (string)$row[self::INTERNAL_ITEM_QUANTITY],
         );
+    }
+
+    protected function updateExistingConversion($newGoal, $updateWhere)
+    {
+        $updateParts = $sqlBind = $updateWhereParts = array();
+        foreach ($newGoal AS $name => $value) {
+            $updateParts[] = $name . " = ?";
+            $sqlBind[] = $value;
+        }
+        foreach ($updateWhere as $name => $value) {
+            $updateWhereParts[] = $name . " = ?";
+            $sqlBind[] = $value;
+        }
+        $sql = 'UPDATE  ' . Common::prefixTable('log_conversion') . "
+					SET " . implode($updateParts, ', ') . "
+						WHERE " . implode($updateWhereParts, ' AND ');
+
+        try {
+            Tracker::getDatabase()->query($sql, $sqlBind);
+        } catch(Exception $e){
+            Common::printDebug("There was an error while updating the Conversion: " . $e->getMessage());
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * @param $type
+     * @param $name
+     * @param $keyword
+     */
+    protected function setCampaignValuesToLowercase($type, &$name, &$keyword)
+    {
+        if ($type === Common::REFERRER_TYPE_CAMPAIGN) {
+            if (!empty($name)) {
+                $name = Common::mb_strtolower($name);
+            }
+            if (!empty($keyword)) {
+                $keyword = Common::mb_strtolower($keyword);
+            }
+        }
+    }
+
+    /**
+     * @param $goal
+     * @param $pattern_type
+     * @param $url
+     * @return bool
+     * @throws \Exception
+     */
+    protected function isUrlMatchingGoal($goal, $pattern_type, $url)
+    {
+        switch ($pattern_type) {
+            case 'regex':
+                $pattern = $goal['pattern'];
+                if (strpos($pattern, '/') !== false
+                    && strpos($pattern, '\\/') === false
+                ) {
+                    $pattern = str_replace('/', '\\/', $pattern);
+                }
+                $pattern = '/' . $pattern . '/';
+                if (!$goal['case_sensitive']) {
+                    $pattern .= 'i';
+                }
+                $match = (@preg_match($pattern, $url) == 1);
+                break;
+            case 'contains':
+                if ($goal['case_sensitive']) {
+                    $matched = strpos($url, $goal['pattern']);
+                } else {
+                    $matched = stripos($url, $goal['pattern']);
+                }
+                $match = ($matched !== false);
+                break;
+            case 'exact':
+                if ($goal['case_sensitive']) {
+                    $matched = strcmp($goal['pattern'], $url);
+                } else {
+                    $matched = strcasecmp($goal['pattern'], $url);
+                }
+                $match = ($matched == 0);
+                break;
+            default:
+                throw new Exception(Piwik::translate('General_ExceptionInvalidGoalPattern', array($pattern_type)));
+                break;
+        }
+        return $match;
     }
 }

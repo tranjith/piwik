@@ -5,15 +5,13 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Piwik
  */
 
 namespace Piwik\Archive;
 
-use Piwik\Site;
 use Piwik\DataTable;
 use Piwik\DataTable\Row;
+use Piwik\Site;
 
 /**
  * Creates a DataTable or Set instance based on an array
@@ -53,7 +51,7 @@ class DataTableFactory
     /**
      * The maximum number of subtable levels to create when creating an expanded
      * DataTable.
-     * 
+     *
      * @var int
      */
     private $maxSubtableDepth = null;
@@ -80,6 +78,9 @@ class DataTableFactory
      */
     private $defaultRow;
 
+    const TABLE_METADATA_SITE_INDEX = 'site';
+    const TABLE_METADATA_PERIOD_INDEX = 'period';
+
     /**
      * Constructor.
      */
@@ -98,7 +99,7 @@ class DataTableFactory
      * Tells the factory instance to expand the DataTables that are created by
      * creating subtables and setting the subtable IDs of rows w/ subtables correctly.
      *
-     * @param null|int $maxSubtableDepth  max depth for subtables.
+     * @param null|int $maxSubtableDepth max depth for subtables.
      * @param bool $addMetadataSubtableId Whether to add the subtable ID used in the
      *                                    database to the in-memory DataTables as
      *                                    metadata or not.
@@ -149,7 +150,7 @@ class DataTableFactory
 
             $dataTable = $this->createDataTable($index, $keyMetadata = array());
         } else {
-            $dataTable = $this->createDataTableArrayFromIndex($index, $resultIndices);
+            $dataTable = $this->createDataTableMapFromIndex($index, $resultIndices, $keyMetadata = array());
         }
 
         $this->transformMetadata($dataTable);
@@ -205,7 +206,7 @@ class DataTableFactory
         }
 
         // set table metadata
-        $table->metadata = DataCollection::getDataRowMetadata($blobRow);
+        $table->setMetadataValues(DataCollection::getDataRowMetadata($blobRow));
 
         if ($this->expandDataTable) {
             $table->enableRecursiveFilters();
@@ -231,7 +232,7 @@ class DataTableFactory
 
         foreach ($blobRow as $name => $blob) {
             $newTable = DataTable::fromSerializedArray($blob);
-            $newTable->metadata = $tableMetadata;
+            $newTable->setAllTableMetadata($tableMetadata);
 
             $table->addTable($newTable, $name);
         }
@@ -247,7 +248,7 @@ class DataTableFactory
      * @param array $keyMetadata The metadata to add to the table when it's created.
      * @return DataTable\Map
      */
-    private function createDataTableArrayFromIndex($index, $resultIndices, $keyMetadata = array())
+    private function createDataTableMapFromIndex($index, $resultIndices, $keyMetadata = array())
     {
         $resultIndexLabel = reset($resultIndices);
         $resultIndex = key($resultIndices);
@@ -263,7 +264,7 @@ class DataTableFactory
             if (empty($resultIndices)) {
                 $newTable = $this->createDataTable($value, $keyMetadata);
             } else {
-                $newTable = $this->createDataTableArrayFromIndex($value, $resultIndices, $keyMetadata);
+                $newTable = $this->createDataTableMapFromIndex($value, $resultIndices, $keyMetadata);
             }
 
             $result->addTable($newTable, $this->prettifyIndexLabel($resultIndex, $label));
@@ -284,45 +285,9 @@ class DataTableFactory
         if ($this->dataType == 'blob') {
             $result = $this->makeFromBlobRow($data);
         } else {
-            $table = new DataTable\Simple();
-
-            if (!empty($data)) {
-                $table->metadata = DataCollection::getDataRowMetadata($data);
-
-                DataCollection::removeMetadataFromDataRow($data);
-
-                $table->addRow(new Row(array(Row::COLUMNS => $data)));
-            } else {
-                // if we're querying numeric data, we couldn't find any, and we're only
-                // looking for one metric, add a row w/ one column w/ value 0. this is to
-                // ensure that the PHP renderer outputs 0 when only one column is queried.
-                // w/o this code, an empty array would be created, and other parts of Piwik
-                // would break.
-                if (count($this->dataNames) == 1) {
-                    $name = reset($this->dataNames);
-                    $table->addRow(new Row(array(Row::COLUMNS => array($name => 0))));
-                }
-            }
-
-            $result = $table;
+            $result = $this->makeFromMetricsArray($data);
         }
-
-        if (!isset($keyMetadata['site'])) {
-            $keyMetadata['site'] = reset($this->sitesId);
-        }
-
-        if (!isset($keyMetadata['period'])) {
-            reset($this->periods);
-            $keyMetadata['period'] = key($this->periods);
-        }
-
-        // Note: $result can be a DataTable\Map
-        $result->filter(function ($table) use ($keyMetadata) {
-            foreach ($keyMetadata as $name => $value) {
-                $table->setMetadata($name, $value);
-            }
-        });
-
+        $this->setTableMetadata($keyMetadata, $result);
         return $result;
     }
 
@@ -331,10 +296,10 @@ class DataTableFactory
      * the subtable IDs of each DataTable row.
      *
      * @param DataTable $dataTable
-     * @param array     $blobRow An array associating record names (w/ subtable if applicable)
+     * @param array $blobRow An array associating record names (w/ subtable if applicable)
      *                           with blob values. This should hold every subtable blob for
      *                           the loaded DataTable.
-     * @param int       $treeLevel
+     * @param int $treeLevel
      */
     private function setSubtables($dataTable, $blobRow, $treeLevel = 0)
     {
@@ -383,8 +348,8 @@ class DataTableFactory
     {
         $periods = $this->periods;
         $table->filter(function ($table) use ($periods) {
-            $table->metadata['site'] = new Site($table->metadata['site']);
-            $table->metadata['period'] = $periods[$table->metadata['period']];
+            $table->setMetadata(DataTableFactory::TABLE_METADATA_SITE_INDEX, new Site($table->getMetadata(DataTableFactory::TABLE_METADATA_SITE_INDEX)));
+            $table->setMetadata(DataTableFactory::TABLE_METADATA_PERIOD_INDEX, $periods[$table->getMetadata(DataTableFactory::TABLE_METADATA_PERIOD_INDEX)]);
         });
     }
 
@@ -397,9 +362,65 @@ class DataTableFactory
      */
     private function prettifyIndexLabel($labelType, $label)
     {
-        if ($labelType == 'period') { // prettify period labels
+        if ($labelType == self::TABLE_METADATA_PERIOD_INDEX) { // prettify period labels
             return $this->periods[$label]->getPrettyString();
         }
         return $label;
     }
+
+    /**
+     * @param $keyMetadata
+     * @param $result
+     */
+    private function setTableMetadata($keyMetadata, $result)
+    {
+        if (!isset($keyMetadata[DataTableFactory::TABLE_METADATA_SITE_INDEX])) {
+            $keyMetadata[DataTableFactory::TABLE_METADATA_SITE_INDEX] = reset($this->sitesId);
+        }
+
+        if (!isset($keyMetadata[DataTableFactory::TABLE_METADATA_PERIOD_INDEX])) {
+            reset($this->periods);
+            $keyMetadata[DataTableFactory::TABLE_METADATA_PERIOD_INDEX] = key($this->periods);
+        }
+
+        // Note: $result can be a DataTable\Map
+        $result->filter(function ($table) use ($keyMetadata) {
+            foreach ($keyMetadata as $name => $value) {
+                $table->setMetadata($name, $value);
+            }
+        });
+    }
+
+    /**
+     * @param $data
+     * @return DataTable\Simple
+     */
+    private function makeFromMetricsArray($data)
+    {
+        $table = new DataTable\Simple();
+
+        if (!empty($data)) {
+            $table->setAllTableMetadata(DataCollection::getDataRowMetadata($data));
+
+            DataCollection::removeMetadataFromDataRow($data);
+
+            $table->addRow(new Row(array(Row::COLUMNS => $data)));
+        } else {
+            // if we're querying numeric data, we couldn't find any, and we're only
+            // looking for one metric, add a row w/ one column w/ value 0. this is to
+            // ensure that the PHP renderer outputs 0 when only one column is queried.
+            // w/o this code, an empty array would be created, and other parts of Piwik
+            // would break.
+            if (count($this->dataNames) == 1
+                && $this->dataType == 'numeric'
+            ) {
+                $name = reset($this->dataNames);
+                $table->addRow(new Row(array(Row::COLUMNS => array($name => 0))));
+            }
+        }
+
+        $result = $table;
+        return $result;
+    }
 }
+

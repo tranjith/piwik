@@ -6,9 +6,9 @@
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  */
 use Piwik\IP;
-use Piwik\Plugins\AnonymizeIP\AnonymizeIP;
+use Piwik\Plugins\PrivacyManager\IPAnonymizer;
 
-require_once 'AnonymizeIP/AnonymizeIP.php';
+require_once 'PrivacyManager/IPAnonymizer.php';
 
 class AnonymizeIPTest extends PHPUnit_Framework_TestCase
 {
@@ -54,37 +54,35 @@ class AnonymizeIPTest extends PHPUnit_Framework_TestCase
     /**
      * @dataProvider getipv4Addresses
      * @group Plugins
-     * @group AnonymizeIP
      */
     public function testApplyIPMask($ip, $expected)
     {
         // each IP is tested with 0 to 4 octets masked
         for ($maskLength = 0; $maskLength <= 4; $maskLength++) {
-            $res = AnonymizeIP::applyIPMask(IP::P2N($ip), $maskLength);
+            $res = IPAnonymizer::applyIPMask(IP::P2N($ip), $maskLength);
             $this->assertEquals($expected[$maskLength], $res, "Got " . bin2hex($res) . ", Expected " . bin2hex($expected[$maskLength]));
         }
 
         // edge case (bounds check)
-        $this->assertEquals("\x00\x00\x00\x00", AnonymizeIP::applyIPMask(IP::P2N($ip), 5));
+        $this->assertEquals("\x00\x00\x00\x00", IPAnonymizer::applyIPMask(IP::P2N($ip), 5));
 
         // mask IPv4 mapped addresses
         for ($maskLength = 0; $maskLength <= 4; $maskLength++) {
-            $res = AnonymizeIP::applyIPMask(IP::P2N('::ffff:' . $ip), $maskLength);
+            $res = IPAnonymizer::applyIPMask(IP::P2N('::ffff:' . $ip), $maskLength);
             $this->assertEquals($res, "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xff\xff" . $expected[$maskLength], "Got " . bin2hex($res) . ", Expected " . bin2hex($expected[$maskLength]));
         }
-        $this->assertEquals("\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xff\x00\x00\x00\x00\x00", AnonymizeIP::applyIPMask(IP::P2N('::ffff:' . $ip), 5));
+        $this->assertEquals("\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xff\x00\x00\x00\x00\x00", IPAnonymizer::applyIPMask(IP::P2N('::ffff:' . $ip), 5));
     }
 
     /**
      * @dataProvider getipv6Addresses
      * @group Plugins
-     * @group AnonymizeIP
      */
     public function testApplyIPMask6($ip, $expected)
     {
         // each IP is tested with 0 to 4 octets masked
         for ($maskLength = 0; $maskLength < 4; $maskLength++) {
-            $res = AnonymizeIP::applyIPMask(IP::P2N($ip), $maskLength);
+            $res = IPAnonymizer::applyIPMask(IP::P2N($ip), $maskLength);
             $this->assertEquals($expected[$maskLength], $res, "Got " . bin2hex($res) . ", Expected " . bin2hex($expected[$maskLength]) . ", Mask Level " . $maskLength);
         }
     }

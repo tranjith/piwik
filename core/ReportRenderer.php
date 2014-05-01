@@ -5,8 +5,6 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Piwik
  */
 namespace Piwik;
 
@@ -20,9 +18,6 @@ use Piwik\Plugins\ImageGraph\API;
 /**
  * A Report Renderer produces user friendly renderings of any given Piwik report.
  * All new Renderers must be copied in ReportRenderer and added to the $availableReportRenderers.
- *
- * @package Piwik
- * @subpackage ReportRenderer
  */
 abstract class ReportRenderer
 {
@@ -36,10 +31,12 @@ abstract class ReportRenderer
 
     const HTML_FORMAT = 'html';
     const PDF_FORMAT = 'pdf';
+    const CSV_FORMAT = 'csv';
 
     static private $availableReportRenderers = array(
         self::PDF_FORMAT,
         self::HTML_FORMAT,
+        self::CSV_FORMAT,
     );
 
     /**
@@ -62,7 +59,7 @@ abstract class ReportRenderer
             @header('Content-Type: text/html; charset=utf-8');
 
             throw new Exception(
-                Piwik_TranslateException(
+                Piwik::translate(
                     'General_ExceptionInvalidReportRendererFormat',
                     array($name, implode(', ', self::$availableReportRenderers))
                 )
@@ -147,6 +144,8 @@ abstract class ReportRenderer
     protected static function getOutputPath($filename)
     {
         $outputFilename = PIWIK_USER_PATH . '/tmp/assets/' . $filename;
+        $outputFilename = SettingsPiwik::rewriteTmpPathWithHostname($outputFilename);
+
         @chmod($outputFilename, 0600);
         @unlink($outputFilename);
         return $outputFilename;
@@ -213,8 +212,8 @@ abstract class ReportRenderer
             }
 
             $reportColumns = array(
-                'label' => Piwik_Translate('General_Name'),
-                'value' => Piwik_Translate('General_Value'),
+                'label' => Piwik::translate('General_Name'),
+                'value' => Piwik::translate('General_Value'),
             );
         }
 

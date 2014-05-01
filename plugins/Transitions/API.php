@@ -5,24 +5,21 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik_Plugins
- * @package Transitions
  */
 
 namespace Piwik\Plugins\Transitions;
 
 use Exception;
 use Piwik\ArchiveProcessor;
+use Piwik\Common;
 use Piwik\DataAccess\LogAggregator;
+use Piwik\DataArray;
 use Piwik\DataTable\Manager;
 use Piwik\DataTable\Row;
+use Piwik\DataTable;
 use Piwik\Metrics;
 use Piwik\Period;
-use Piwik\Period\Day;
 use Piwik\Piwik;
-use Piwik\Common;
-use Piwik\DataTable;
-use Piwik\DataArray;
 use Piwik\Plugins\Actions\Actions;
 use Piwik\Plugins\Actions\ArchivingHelper;
 use Piwik\RankingQuery;
@@ -30,24 +27,14 @@ use Piwik\Segment;
 use Piwik\SegmentExpression;
 use Piwik\Site;
 use Piwik\Tracker\Action;
-use Piwik\Plugins\Transitions\Controller;
+use Piwik\Tracker\PageUrl;
+use Piwik\Tracker\TableLogAction;
 
 /**
- * @package Transitions
+ * @method static \Piwik\Plugins\Transitions\API getInstance()
  */
-class API
+class API extends \Piwik\Plugin\API
 {
-
-    static private $instance = null;
-
-    static public function getInstance()
-    {
-        if (self::$instance == null) {
-            self::$instance = new self;
-        }
-        return self::$instance;
-    }
-
     public function getTransitionsForPageTitle($pageTitle, $idSite, $period, $date, $segment = false, $limitBeforeGrouping = false)
     {
         return $this->getTransitionsForAction($pageTitle, 'title', $idSite, $period, $date, $segment, $limitBeforeGrouping);
@@ -69,12 +56,11 @@ class API
      * @param bool $segment
      * @param bool $limitBeforeGrouping
      * @param string $parts
-     * @param bool $returnNormalizedUrls
      * @return array
      * @throws Exception
      */
     public function getTransitionsForAction($actionName, $actionType, $idSite, $period, $date,
-                                            $segment = false, $limitBeforeGrouping = false, $parts = 'all', $returnNormalizedUrls = false)
+                                            $segment = false, $limitBeforeGrouping = false, $parts = 'all')
     {
         Piwik::checkUserHasViewAccess($idSite);
 
@@ -84,22 +70,19 @@ class API
             throw new Exception('NoDataForAction');
         }
 
-        // prepare archive processing that can be used by the archiving code
+        // prepare log aggregator
         $segment = new Segment($segment, $idSite);
         $site = new Site($idSite);
-        $period = Period::advancedFactory($period, $date);
-        $archiveProcessor = new ArchiveProcessor\Day($period, $site, $segment);
-        $logAggregator = $archiveProcessor->getLogAggregator();
+        $period = Period::factory($period, $date);
+        $params = new ArchiveProcessor\Parameters($site, $period, $segment);
+        $logAggregator = new LogAggregator($params);
+
         // prepare the report
         $report = array(
-            'date' => Day::advancedFactory($period->getLabel(), $date)->getLocalizedShortString()
+            'date' => Period::factory($period->getLabel(), $date)->getLocalizedShortString()
         );
 
-        // add data to the report
-        $this->returnNormalizedUrls();
-
         $partsArray = explode(',', $parts);
-
         if ($parts == 'all' || in_array('internalReferrers', $partsArray)) {
             $this->addInternalReferrers($logAggregator, $report, $idaction, $actionType, $limitBeforeGrouping);
         }
@@ -150,25 +133,23 @@ class API
             case 'url':
                 $originalActionName = $actionName;
                 $actionName = Common::unsanitizeInputValue($actionName);
-                $id = $actionsPlugin->getIdActionFromSegment($actionName, 'idaction_url', SegmentExpression::MATCH_EQUAL, 'pageUrl');
+                $id = TableLogAction::getIdActionFromSegment($actionName, 'idaction_url', SegmentExpression::MATCH_EQUAL, 'pageUrl');
 
                 if ($id < 0) {
                     // an example where this is needed is urls containing < or >
                     $actionName = $originalActionName;
-                    $id = $actionsPlugin->getIdActionFromSegment($actionName, 'idaction_url', SegmentExpression::MATCH_EQUAL, 'pageUrl');
+                    $id = TableLogAction::getIdActionFromSegment($actionName, 'idaction_url', SegmentExpression::MATCH_EQUAL, 'pageUrl');
                 }
 
                 return $id;
 
             case 'title':
-                $id = $actionsPlugin->getIdActionFromSegment($actionName, 'idaction_name', SegmentExpression::MATCH_EQUAL, 'pageTitle');
+                $id = TableLogAction::getIdActionFromSegment($actionName, 'idaction_name', SegmentExpression::MATCH_EQUAL, 'pageTitle');
 
                 if ($id < 0) {
-                    $unknown = ArchivingHelper::getUnknownActionName(
-                        Action::TYPE_ACTION_NAME);
-
+                    $unknown = ArchivingHelper::getUnknownActionName(Action::TYPE_PAGE_TITLE);
                     if (trim($actionName) == trim($unknown)) {
-                        $id = $actionsPlugin->getIdActionFromSegment('', 'idaction_name', SegmentExpression::MATCH_EQUAL, 'pageTitle');
+                        $id = TableLogAction::getIdActionFromSegment('', 'idaction_name', SegmentExpression::MATCH_EQUAL, 'pageTitle');
                     }
                 }
 
@@ -237,15 +218,14 @@ class API
      * @param $includeLoops
      * @return array(followingPages:DataTable, outlinks:DataTable, downloads:DataTable)
      */
-    public function queryFollowingActions($idaction, $actionType, LogAggregator $logAggregator,
+    protected function queryFollowingActions($idaction, $actionType, LogAggregator $logAggregator,
                                           $limitBeforeGrouping = false, $includeLoops = false)
     {
         $types = array();
 
-        $isTitle = ($actionType == 'title');
-        if (!$isTitle) {
+        if ($actionType != 'title') {
             // specific setup for page urls
-            $types[Action::TYPE_ACTION_URL] = 'followingPages';
+            $types[Action::TYPE_PAGE_URL] = 'followingPages';
             $dimension = 'IF( idaction_url IS NULL, idaction_name, idaction_url )';
             // site search referrers are logged with url=NULL
             // when we find one, we have to join on name
@@ -253,7 +233,7 @@ class API
             $selects = array('log_action.name', 'log_action.url_prefix', 'log_action.type');
         } else {
             // specific setup for page titles:
-            $types[Action::TYPE_ACTION_NAME] = 'followingPages';
+            $types[Action::TYPE_PAGE_TITLE] = 'followingPages';
             // join log_action on name and url and pick depending on url type
             // the table joined on url is log_action1
             $joinLogActionColumn = array('idaction_url', 'idaction_name');
@@ -262,7 +242,7 @@ class API
 					' /* following site search */ . '
 					WHEN log_link_visit_action.idaction_url IS NULL THEN log_action2.idaction
 					' /* following page view: use page title */ . '
-					WHEN log_action1.type = ' . Action::TYPE_ACTION_URL . ' THEN log_action2.idaction
+					WHEN log_action1.type = ' . Action::TYPE_PAGE_URL . ' THEN log_action2.idaction
 					' /* following download or outlink: use url */ . '
 					ELSE log_action1.idaction
 				END
@@ -272,7 +252,7 @@ class API
 					' /* following site search */ . '
 					WHEN log_link_visit_action.idaction_url IS NULL THEN log_action2.name
 					' /* following page view: use page title */ . '
-					WHEN log_action1.type = ' . Action::TYPE_ACTION_URL . ' THEN log_action2.name
+					WHEN log_action1.type = ' . Action::TYPE_PAGE_URL . ' THEN log_action2.name
 					' /* following download or outlink: use url */ . '
 					ELSE log_action1.name
 				END AS `name`',
@@ -280,7 +260,7 @@ class API
                     ' /* following site search */ . '
 					WHEN log_link_visit_action.idaction_url IS NULL THEN log_action2.type
 					' /* following page view: use page title */ . '
-					WHEN log_action1.type = ' . Action::TYPE_ACTION_URL . ' THEN log_action2.type
+					WHEN log_action1.type = ' . Action::TYPE_PAGE_URL . ' THEN log_action2.type
 					' /* following download or outlink: use url */ . '
 					ELSE log_action1.type
 				END AS `type`',
@@ -307,35 +287,9 @@ class API
         $metrics = array(Metrics::INDEX_NB_ACTIONS);
         $data = $logAggregator->queryActionsByDimension(array($dimension), $where, $selects, $metrics, $rankingQuery, $joinLogActionColumn);
 
-        $this->totalTransitionsToFollowingActions = 0;
-        $dataTables = array();
-        foreach ($types as $type => $recordName) {
-            $dataTable = new DataTable;
-            if (isset($data[$type])) {
-                foreach ($data[$type] as &$record) {
-                    $actions = intval($record[Metrics::INDEX_NB_ACTIONS]);
-                    $dataTable->addRow(new Row(array(
-                                                    Row::COLUMNS => array(
-                                                        'label'                   => $this->getPageLabel($record, $isTitle),
-                                                        Metrics::INDEX_NB_ACTIONS => $actions
-                                                    )
-                                               )));
-                    $this->totalTransitionsToFollowingActions += $actions;
-                }
-            }
-            $dataTables[$recordName] = $dataTable;
-        }
+        $dataTables = $this->makeDataTablesFollowingActions($types, $data);
 
         return $dataTables;
-    }
-
-    /**
-     * After calling this method, the query*()-Methods will return urls in their
-     * normalized form (without the prefix reconstructed)
-     */
-    public function returnNormalizedUrls()
-    {
-        $this->returnNormalizedUrls = true;
     }
 
     /**
@@ -347,7 +301,7 @@ class API
      * @param $limitBeforeGrouping
      * @return DataTable
      */
-    public function queryExternalReferrers($idaction, $actionType, $logAggregator, $limitBeforeGrouping = false)
+    protected function queryExternalReferrers($idaction, $actionType, $logAggregator, $limitBeforeGrouping = false)
     {
         $rankingQuery = new RankingQuery($limitBeforeGrouping ? $limitBeforeGrouping : $this->limitBeforeGrouping);
 
@@ -392,7 +346,7 @@ class API
 
             foreach ($subData as &$row) {
                 if ($referrerType == Common::REFERRER_TYPE_SEARCH_ENGINE && empty($row['referrer_data'])) {
-                    $row['referrer_data'] = \Piwik\Plugins\Referers\API::LABEL_KEYWORD_NOT_DEFINED;
+                    $row['referrer_data'] = \Piwik\Plugins\Referrers\API::LABEL_KEYWORD_NOT_DEFINED;
                 }
 
                 $referrerData[$referrerType][Metrics::INDEX_NB_VISITS] += $row[Metrics::INDEX_NB_VISITS];
@@ -406,9 +360,8 @@ class API
             }
         }
 
-        //FIXMEA refactor after integration tests written
         $array = new DataArray($referrerData, $referrerSubData);
-        return ArchiveProcessor\Day::getDataTableFromDataArray($array);
+        return $array->asDataTable();
     }
 
     /**
@@ -422,18 +375,21 @@ class API
      */
     protected function queryInternalReferrers($idaction, $actionType, $logAggregator, $limitBeforeGrouping = false)
     {
+        $keyIsOther = 0;
+        $keyIsPageUrlAction = 1;
+        $keyIsSiteSearchAction = 2;
+
         $rankingQuery = new RankingQuery($limitBeforeGrouping ? $limitBeforeGrouping : $this->limitBeforeGrouping);
         $rankingQuery->addLabelColumn(array('name', 'url_prefix'));
         $rankingQuery->setColumnToMarkExcludedRows('is_self');
-        $rankingQuery->partitionResultIntoMultipleGroups('action_partition', array(0, 1, 2));
+        $rankingQuery->partitionResultIntoMultipleGroups('action_partition', array($keyIsOther, $keyIsPageUrlAction, $keyIsSiteSearchAction));
 
         $type = $this->getColumnTypeSuffix($actionType);
-        $mainActionType = Action::TYPE_ACTION_URL;
+        $mainActionType = Action::TYPE_PAGE_URL;
         $dimension = 'idaction_url_ref';
-        $isTitle = $actionType == 'title';
 
-        if ($isTitle) {
-            $mainActionType = Action::TYPE_ACTION_NAME;
+        if ($actionType == 'title') {
+            $mainActionType = Action::TYPE_PAGE_TITLE;
             $dimension = 'idaction_name_ref';
         }
 
@@ -442,14 +398,13 @@ class API
             'log_action.url_prefix',
             'CASE WHEN log_link_visit_action.idaction_' . $type . '_ref = ' . intval($idaction) . ' THEN 1 ELSE 0 END AS `is_self`',
             'CASE
-                WHEN log_action.type = ' . $mainActionType . ' THEN 1
-                        WHEN log_action.type = ' . Action::TYPE_SITE_SEARCH . ' THEN 2
-                        ELSE 0
+                WHEN log_action.type = ' . $mainActionType . ' THEN ' . $keyIsPageUrlAction . '
+                        WHEN log_action.type = ' . Action::TYPE_SITE_SEARCH . ' THEN ' . $keyIsSiteSearchAction .'
+                        ELSE ' . $keyIsOther . '
                     END AS `action_partition`'
         );
 
-        $where = '
-			log_link_visit_action.idaction_' . $type . ' = ' . intval($idaction);
+        $where = ' log_link_visit_action.idaction_' . $type . ' = ' . intval($idaction);
 
         if ($dimension == 'idaction_url_ref') {
             // site search referrers are logged with url_ref=NULL
@@ -465,12 +420,12 @@ class API
         $loops = 0;
         $nbPageviews = 0;
         $previousPagesDataTable = new DataTable;
-        if (isset($data['result'][1])) {
-            foreach ($data['result'][1] as &$page) {
+        if (isset($data['result'][$keyIsPageUrlAction])) {
+            foreach ($data['result'][$keyIsPageUrlAction] as &$page) {
                 $nbActions = intval($page[Metrics::INDEX_NB_ACTIONS]);
                 $previousPagesDataTable->addRow(new Row(array(
                                                              Row::COLUMNS => array(
-                                                                 'label'                   => $this->getPageLabel($page, $isTitle),
+                                                                 'label'                   => $this->getPageLabel($page, Action::TYPE_PAGE_URL),
                                                                  Metrics::INDEX_NB_ACTIONS => $nbActions
                                                              )
                                                         )));
@@ -479,8 +434,8 @@ class API
         }
 
         $previousSearchesDataTable = new DataTable;
-        if (isset($data['result'][2])) {
-            foreach ($data['result'][2] as &$search) {
+        if (isset($data['result'][$keyIsSiteSearchAction])) {
+            foreach ($data['result'][$keyIsSiteSearchAction] as &$search) {
                 $nbActions = intval($search[Metrics::INDEX_NB_ACTIONS]);
                 $previousSearchesDataTable->addRow(new Row(array(
                                                                 Row::COLUMNS => array(
@@ -511,21 +466,21 @@ class API
         );
     }
 
-    private function getPageLabel(&$pageRecord, $isTitle)
+    private function getPageLabel(&$pageRecord, $type)
     {
-        if ($isTitle) {
+        if ($type == Action::TYPE_PAGE_TITLE) {
             $label = $pageRecord['name'];
             if (empty($label)) {
-                $label = ArchivingHelper::getUnknownActionName(
-                    Action::TYPE_ACTION_NAME);
+                $label = ArchivingHelper::getUnknownActionName(Action::TYPE_PAGE_TITLE);
             }
             return $label;
-        } else if ($this->returnNormalizedUrls) {
-            return $pageRecord['name'];
-        } else {
-            return Action::reconstructNormalizedUrl(
-                $pageRecord['name'], $pageRecord['url_prefix']);
         }
+
+        if ($type == Action::TYPE_OUTLINK || $type == Action::TYPE_DOWNLOAD) {
+            return PageUrl::reconstructNormalizedUrl($pageRecord['name'], $pageRecord['url_prefix']);
+        }
+
+        return $pageRecord['name'];
     }
 
     private function getColumnTypeSuffix($actionType)
@@ -538,8 +493,6 @@ class API
 
     private $limitBeforeGrouping = 5;
     private $totalTransitionsToFollowingActions = 0;
-
-    private $returnNormalizedUrls = false;
 
     /**
      * Get the sum of all transitions to following actions (pages, outlinks, downloads).
@@ -585,7 +538,7 @@ class API
                 }
                 $report['referrers'][] = array(
                     'label'     => $this->getReferrerLabel($referrerId),
-                    'shortName' => \Piwik\Plugins\Referers\getRefererTypeFromShortName($referrerId),
+                    'shortName' => \Piwik\Plugins\Referrers\getReferrerTypeFromShortName($referrerId),
                     'visits'    => $visits,
                     'details'   => $details
                 );
@@ -599,7 +552,7 @@ class API
         if (count($report['referrers']) == 0) {
             $report['referrers'][] = array(
                 'label'     => $this->getReferrerLabel(Common::REFERRER_TYPE_DIRECT_ENTRY),
-                'shortName' => \Piwik\Plugins\Referers\getRefererTypeLabel(Common::REFERRER_TYPE_DIRECT_ENTRY),
+                'shortName' => \Piwik\Plugins\Referrers\getReferrerTypeLabel(Common::REFERRER_TYPE_DIRECT_ENTRY),
                 'visits'    => 0
             );
         }
@@ -617,7 +570,7 @@ class API
             case Common::REFERRER_TYPE_CAMPAIGN:
                 return Controller::getTranslation('fromCampaigns');
             default:
-                return Piwik_Translate('General_Others');
+                return Piwik::translate('General_Others');
         }
     }
 
@@ -625,5 +578,28 @@ class API
     {
         $controller = new Controller();
         return $controller->getTranslations();
+    }
+
+    protected function makeDataTablesFollowingActions($types, $data)
+    {
+        $this->totalTransitionsToFollowingActions = 0;
+        $dataTables = array();
+        foreach ($types as $type => $recordName) {
+            $dataTable = new DataTable;
+            if (isset($data[$type])) {
+                foreach ($data[$type] as &$record) {
+                    $actions = intval($record[Metrics::INDEX_NB_ACTIONS]);
+                    $dataTable->addRow(new Row(array(
+                                                    Row::COLUMNS => array(
+                                                        'label'                   => $this->getPageLabel($record, $type),
+                                                        Metrics::INDEX_NB_ACTIONS => $actions
+                                                    )
+                                               )));
+                    $this->totalTransitionsToFollowingActions += $actions;
+                }
+            }
+            $dataTables[$recordName] = $dataTable;
+        }
+        return $dataTables;
     }
 }

@@ -12,6 +12,7 @@
 		<visitEcommerceStatus>none</visitEcommerceStatus>
 		<visitEcommerceStatusIcon />
 		<searches>0</searches>
+		<events>0</events>
 		<actions>1</actions>
 		<actionDetails>
 			<row>
@@ -19,8 +20,8 @@
 				<url>http://example.org/this%20is%20cool!</url>
 				<pageTitle />
 				<pageIdAction>2</pageIdAction>
-				<pageId>2</pageId>
 				
+				<pageId>2</pageId>
 				<icon />
 			</row>
 		</actionDetails>
@@ -63,10 +64,10 @@
 		<referrerKeywordPosition>4</referrerKeywordPosition>
 		<referrerUrl>http://www.google.com.vn/search?q=%3C%3E%26%5C%22the+pdo+extension+is+required+for+this+adapter+but+the+extension+is+not+loaded</referrerUrl>
 		<referrerSearchEngineUrl>http://google.com</referrerSearchEngineUrl>
-		<referrerSearchEngineIcon>plugins/Referers/images/searchEngines/google.com.png</referrerSearchEngineIcon>
-		<operatingSystem>Inconnu</operatingSystem>
-		<operatingSystemCode>UNK</operatingSystemCode>
-		<operatingSystemShortName>Unknown</operatingSystemShortName>
+		<referrerSearchEngineIcon>plugins/Referrers/images/searchEngines/google.com.png</referrerSearchEngineIcon>
+		<operatingSystem>Bot</operatingSystem>
+		<operatingSystemCode>BOT</operatingSystemCode>
+		<operatingSystemShortName>BOT</operatingSystemShortName>
 		<operatingSystemIcon>plugins/UserSettings/images/os/UNK.gif</operatingSystemIcon>
 		<browserFamily>unknown</browserFamily>
 		<browserFamilyDescription>Inconnu</browserFamilyDescription>
@@ -75,7 +76,7 @@
 		<browserCode>UNK</browserCode>
 		<browserVersion>UNK</browserVersion>
 		<screenType>normal</screenType>
-		<deviceType>Inconnu</deviceType>
+		<deviceType>Bureau</deviceType>
 		<resolution>1024x768</resolution>
 		<screenTypeIcon>plugins/UserSettings/images/screens/normal.gif</screenTypeIcon>
 		<plugins>flash, java</plugins>
@@ -107,6 +108,7 @@
 		<visitEcommerceStatus>none</visitEcommerceStatus>
 		<visitEcommerceStatusIcon />
 		<searches>0</searches>
+		<events>0</events>
 		<actions>1</actions>
 		<actionDetails>
 			<row>
@@ -114,8 +116,8 @@
 				<url>http://example.org/this%20is%20cool!</url>
 				<pageTitle>incredible title!</pageTitle>
 				<pageIdAction>2</pageIdAction>
-				<pageId>1</pageId>
 				
+				<pageId>1</pageId>
 				<icon />
 			</row>
 			<row>
@@ -168,10 +170,10 @@
 		<referrerKeywordPosition>1</referrerKeywordPosition>
 		<referrerUrl>http://piwik.org/faq/general/#faq_144</referrerUrl>
 		<referrerSearchEngineUrl>http://google.com</referrerSearchEngineUrl>
-		<referrerSearchEngineIcon>plugins/Referers/images/searchEngines/google.com.png</referrerSearchEngineIcon>
-		<operatingSystem>Inconnu</operatingSystem>
-		<operatingSystemCode>UNK</operatingSystemCode>
-		<operatingSystemShortName>Unknown</operatingSystemShortName>
+		<referrerSearchEngineIcon>plugins/Referrers/images/searchEngines/google.com.png</referrerSearchEngineIcon>
+		<operatingSystem>Bot</operatingSystem>
+		<operatingSystemCode>BOT</operatingSystemCode>
+		<operatingSystemShortName>BOT</operatingSystemShortName>
 		<operatingSystemIcon>plugins/UserSettings/images/os/UNK.gif</operatingSystemIcon>
 		<browserFamily>unknown</browserFamily>
 		<browserFamilyDescription>Inconnu</browserFamilyDescription>
@@ -180,7 +182,7 @@
 		<browserCode>UNK</browserCode>
 		<browserVersion>UNK</browserVersion>
 		<screenType>normal</screenType>
-		<deviceType>Inconnu</deviceType>
+		<deviceType>Bureau</deviceType>
 		<resolution>1024x768</resolution>
 		<screenTypeIcon>plugins/UserSettings/images/screens/normal.gif</screenTypeIcon>
 		<plugins>flash, java</plugins>

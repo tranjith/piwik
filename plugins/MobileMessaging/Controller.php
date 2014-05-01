@@ -5,28 +5,23 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik_Plugins
- * @package MobileMessaging
  */
 
 namespace Piwik\Plugins\MobileMessaging;
 
-use Piwik\Piwik;
 use Piwik\Common;
 use Piwik\IP;
+use Piwik\Piwik;
 use Piwik\Plugins\LanguagesManager\LanguagesManager;
-use Piwik\Plugins\MobileMessaging\API;
-use Piwik\View;
-use Piwik\Plugins\MobileMessaging\CountryCallingCodes;
 use Piwik\Plugins\MobileMessaging\SMSProvider;
+use Piwik\View;
 
 require_once PIWIK_INCLUDE_PATH . '/plugins/UserCountry/functions.php';
 
 /**
  *
- * @package MobileMessaging
  */
-class Controller extends \Piwik\Controller\Admin
+class Controller extends \Piwik\Plugin\ControllerAdmin
 {
     /*
      * Mobile Messaging Settings tab :
@@ -41,13 +36,13 @@ class Controller extends \Piwik\Controller\Admin
 
         $view = new View('@MobileMessaging/index');
 
-        $view->isSuperUser = Piwik::isUserIsSuperUser();
+        $view->isSuperUser = Piwik::hasUserSuperUserAccess();
 
         $mobileMessagingAPI = API::getInstance();
         $view->delegatedManagement = $mobileMessagingAPI->getDelegatedManagement();
         $view->credentialSupplied = $mobileMessagingAPI->areSMSAPICredentialProvided();
         $view->accountManagedByCurrentUser = $view->isSuperUser || $view->delegatedManagement;
-        $view->strHelpAddPhone = Piwik_Translate('MobileMessaging_Settings_PhoneNumbers_HelpAdd', array(Piwik_Translate('General_Settings'), Piwik_Translate('MobileMessaging_SettingsMenu')));
+        $view->strHelpAddPhone = Piwik::translate('MobileMessaging_Settings_PhoneNumbers_HelpAdd', array(Piwik::translate('General_Settings'), Piwik::translate('MobileMessaging_SettingsMenu')));
         if ($view->credentialSupplied && $view->accountManagedByCurrentUser) {
             $view->provider = $mobileMessagingAPI->getSMSProvider();
             $view->creditLeft = $mobileMessagingAPI->getCreditLeft();
@@ -78,6 +73,6 @@ class Controller extends \Piwik\Controller\Admin
 
         $this->setBasicVariablesView($view);
 
-        echo $view->render();
+        return $view->render();
     }
 }

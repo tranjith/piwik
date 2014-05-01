@@ -5,39 +5,39 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik_Plugins
- * @package ImageGraph
  */
 namespace Piwik\Plugins\ImageGraph;
 
 use Piwik\Common;
-use Piwik\Period;
-use Piwik\Url;
-use Piwik\Site;
 use Piwik\Config;
+use Piwik\Period;
+use Piwik\Period\Range;
+use Piwik\Site;
+use Piwik\TaskScheduler;
+use Piwik\Url;
 
 class ImageGraph extends \Piwik\Plugin
 {
-    static private $CONSTANT_ROW_COUNT_REPORT_EXCEPTIONS = array(
-        'Referers_getRefererType',
-    );
-
-    // row evolution support not yet implemented for these APIs
-    static private $REPORTS_DISABLED_EVOLUTION_GRAPH = array(
-        'Referers_getAll',
-    );
-
     public function getInformation()
     {
         $suffix = ' Debug: <a href="' . Url::getCurrentQueryStringWithParametersModified(
-            array('module' => 'ImageGraph', 'action' => 'index')) . '">All images</a>';
+                array('module' => 'ImageGraph', 'action' => 'index')) . '">All images</a>';
         $info = parent::getInformation();
         $info['description'] .= ' ' . $suffix;
         return $info;
     }
 
+    static private $CONSTANT_ROW_COUNT_REPORT_EXCEPTIONS = array(
+        'Referrers_getReferrerType',
+    );
+
+    // row evolution support not yet implemented for these APIs
+    static private $REPORTS_DISABLED_EVOLUTION_GRAPH = array(
+        'Referrers_getAll',
+    );
+
     /**
-     * @see Piwik_Plugin::getListHooksRegistered
+     * @see Piwik\Plugin::getListHooksRegistered
      */
     public function getListHooksRegistered()
     {
@@ -91,7 +91,7 @@ class ImageGraph extends \Piwik\Plugin
                 $dateForMultiplePeriodGraph = $dateForSinglePeriodGraph;
             } else {
                 $periodForMultiplePeriodGraph = $periodForSinglePeriodGraph;
-                $dateForMultiplePeriodGraph = \Piwik\Controller::getDateRangeRelativeToEndDate(
+                $dateForMultiplePeriodGraph = Range::getRelativeToEndDate(
                     $periodForSinglePeriodGraph,
                     'last' . self::GRAPH_EVOLUTION_LAST_PERIODS,
                     $dateForSinglePeriodGraph,
@@ -134,6 +134,10 @@ class ImageGraph extends \Piwik\Plugin
             $idSubtable = Common::getRequestVar('idSubtable', false);
             if ($idSubtable !== false) {
                 $parameters['idSubtable'] = $idSubtable;
+            }
+
+            if (!empty($_GET['_restrictSitesToLogin']) && TaskScheduler::isTaskBeingExecuted()) {
+                $parameters['_restrictSitesToLogin'] = $_GET['_restrictSitesToLogin'];
             }
 
             $report['imageGraphUrl'] = $urlPrefix . Url::getQueryStringFromParameters($parameters);

@@ -5,37 +5,21 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik_Plugins
- * @package DevicesDetection
  */
 
 namespace Piwik\Plugins\DevicesDetection;
 
 use Piwik\Archive;
+use Piwik\DataTable;
 use Piwik\Metrics;
 use Piwik\Piwik;
-use Piwik\DataTable;
 
 /**
  * The DevicesDetection API lets you access reports on your visitors devices, brands, models, Operating system, Browsers.
+ * @method static \Piwik\Plugins\DevicesDetection\API getInstance()
  */
-class API
+class API extends \Piwik\Plugin\API
 {
-
-    static private $instance = null;
-
-    /**
-     *
-     * @return \Piwik\Plugins\DevicesDetection\API
-     */
-    static public function getInstance()
-    {
-        if (self::$instance == null) {
-            self::$instance = new self;
-        }
-        return self::$instance;
-    }
-
     /**
      * @param string $name
      * @param int $idSite
@@ -66,9 +50,8 @@ class API
     public function getType($idSite, $period, $date, $segment = false)
     {
         $dataTable = $this->getDataTable('DevicesDetection_types', $idSite, $period, $date, $segment);
-        $dataTable->filter('ColumnCallbackReplace', array('label', __NAMESPACE__ . '\getDeviceTypeLabel'));
-        $dataTable->filter('ColumnCallbackReplace', array('label', 'ucfirst'));
         $dataTable->filter('ColumnCallbackAddMetadata', array('label', 'logo', __NAMESPACE__ . '\getDeviceTypeLogo'));
+        $dataTable->filter('ColumnCallbackReplace', array('label', __NAMESPACE__ . '\getDeviceTypeLabel'));
         return $dataTable;
     }
 

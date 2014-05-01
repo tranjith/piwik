@@ -5,8 +5,6 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Piwik
  */
 namespace Piwik\DataTable\Renderer;
 
@@ -17,6 +15,7 @@ use Piwik\DataTable;
 use Piwik\Date;
 use Piwik\Period;
 use Piwik\Period\Range;
+use Piwik\Piwik;
 use Piwik\ProxyHttp;
 
 /**
@@ -28,8 +27,6 @@ use Piwik\ProxyHttp;
  * The default field delimiter string is a comma (,).
  * Formatting and layout are ignored.
  *
- * @package Piwik
- * @subpackage DataTable
  */
 class Csv extends Renderer
 {
@@ -69,6 +66,11 @@ class Csv extends Renderer
     public $exportIdSubtable = true;
 
     /**
+     * This string is also hardcoded in archive,sh
+     */
+    const NO_DATA_AVAILABLE = 'No data available';
+
+    /**
      * Computes the dataTable output and returns the string/binary
      *
      * @return string
@@ -77,7 +79,7 @@ class Csv extends Renderer
     {
         $str = $this->renderTable($this->table);
         if (empty($str)) {
-            return 'No data available';
+            return self::NO_DATA_AVAILABLE;
         }
 
         $this->renderHeader();
@@ -137,7 +139,7 @@ class Csv extends Renderer
         }
 
         if ($table instanceof DataTable\Map) {
-            $str = $this->renderDataTableArray($table, $allColumns);
+            $str = $this->renderDataTableMap($table, $allColumns);
         } else {
             $str = $this->renderDataTable($table, $allColumns);
         }
@@ -151,10 +153,10 @@ class Csv extends Renderer
      * @param array $allColumns
      * @return string
      */
-    protected function renderDataTableArray($table, &$allColumns = array())
+    protected function renderDataTableMap($table, &$allColumns = array())
     {
         $str = '';
-        foreach ($table->getArray() as $currentLinePrefix => $dataTable) {
+        foreach ($table->getDataTables() as $currentLinePrefix => $dataTable) {
             $returned = explode("\n", $this->renderTable($dataTable, $allColumns));
 
             // get rid of the columns names
@@ -215,7 +217,7 @@ class Csv extends Renderer
                     }
                     //if a metadata and a column have the same name make sure they dont overwrite
                     if ($this->translateColumnNames) {
-                        $name = Piwik_Translate('General_Metadata') . ': ' . $name;
+                        $name = Piwik::translate('General_Metadata') . ': ' . $name;
                     } else {
                         $name = 'metadata_' . $name;
                     }
@@ -328,7 +330,7 @@ class Csv extends Renderer
      */
     protected function renderHeader()
     {
-        $fileName = 'Piwik ' . Piwik_Translate('General_Export');
+        $fileName = 'Piwik ' . Piwik::translate('General_Export');
 
         $period = Common::getRequestVar('period', false);
         $date = Common::getRequestVar('date', false);
@@ -374,7 +376,7 @@ class Csv extends Renderer
                     && is_array(reset($value))
                 ) {
                     foreach ($value as $level1Key => $level1Value) {
-                        $inner = $name == 'goals' ? Piwik_Translate('Goals_GoalX', $level1Key) : $name . ' ' . $level1Key;
+                        $inner = $name == 'goals' ? Piwik::translate('Goals_GoalX', $level1Key) : $name . ' ' . $level1Key;
                         $columnNameTemplate = '%s (' . $inner . ')';
 
                         $this->flattenColumnArray($level1Value, $csvRow, $columnNameTemplate);

@@ -1,3 +1,4 @@
+# vim: et sw=4 ts=4:
 import functools
 import os
 
@@ -60,6 +61,9 @@ class Options(object):
     excluded_paths = []
     excluded_useragents = []
     enable_bots = []
+    force_lowercase_path = False
+    included_paths = []
+    enable_http_errors = False
 
 
 class Config(object):
@@ -84,7 +88,7 @@ class Recorder(object):
 
 def test_replay_tracking_arguments():
     """Test data parsing from sample log file."""
-    file_ = 'logs_to_tests.log'
+    file_ = 'logs/logs_to_tests.log'
     
     import_logs.stats = import_logs.Statistics()
     import_logs.config = Config()
@@ -186,7 +190,7 @@ def parse_log_file_line(format_name, file_):
     match = format.check_format(file)
     file.close()
     
-    return match.groupdict()
+    return format.get_all()
 
 # check parsing groups
 def check_common_groups(groups):
@@ -239,7 +243,20 @@ def check_s3_groups(groups):
     assert groups['length'] == '368'
     assert groups['referrer'] == '-'
     assert groups['user_agent'] == 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/535.11 (KHTML, like Gecko) Chrome/17.0.963.56 Safari/535.11'
-    
+
+def check_nginx_json_groups(groups):
+    assert groups['host'] == 'www.piwik.org'
+    assert groups['status'] == '200'
+    assert groups['ip'] == '203.38.78.246'
+    assert groups['length'] == 192
+    assert groups['user_agent'] == 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.17 (KHTML, like Gecko) Chrome/24.0.1312.57 Safari/537.17'
+    assert groups['date'] == '2013-10-10T16:52:00+02:00'
+
+def check_icecast2_groups(groups):
+    check_ncsa_extended_groups(groups)
+
+    assert groups['session_time'] == '1807'
+
 def check_match_groups(format_name, groups):
     symbols = globals()
     check_function = symbols['check_' + format_name + '_groups']

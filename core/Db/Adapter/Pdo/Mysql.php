@@ -5,8 +5,6 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Piwik
  */
 namespace Piwik\Db\Adapter\Pdo;
 
@@ -15,21 +13,20 @@ use PDO;
 use PDOException;
 use Piwik\Config;
 use Piwik\Db\AdapterInterface;
+use Piwik\Piwik;
 use Zend_Config;
 use Zend_Db_Adapter_Pdo_Mysql;
 use Zend_Db_Select;
 use Zend_Db_Statement_Interface;
 
 /**
- * @package Piwik
- * @subpackage Piwik_Db
  */
 class Mysql extends Zend_Db_Adapter_Pdo_Mysql implements AdapterInterface
 {
     /**
      * Constructor
      *
-     * @param array|Zend_Config $config  database configuration
+     * @param array|Zend_Config $config database configuration
      */
     public function __construct($config)
     {
@@ -63,7 +60,9 @@ class Mysql extends Zend_Db_Adapter_Pdo_Mysql implements AdapterInterface
          * @see http://framework.zend.com/issues/browse/ZF-1398
          */
         $this->_connection->setAttribute(PDO::ATTR_EMULATE_PREPARES, true);
-        $this->_connection->setAttribute(PDO::MYSQL_ATTR_USE_BUFFERED_QUERY, true);
+
+        // MYSQL_ATTR_USE_BUFFERED_QUERY will use more memory when enabled
+        // $this->_connection->setAttribute(PDO::MYSQL_ATTR_USE_BUFFERED_QUERY, true);
 
         return $this->_connection;
     }
@@ -96,7 +95,7 @@ class Mysql extends Zend_Db_Adapter_Pdo_Mysql implements AdapterInterface
         $serverVersion = $this->getServerVersion();
         $requiredVersion = Config::getInstance()->General['minimum_mysql_version'];
         if (version_compare($serverVersion, $requiredVersion) === -1) {
-            throw new Exception(Piwik_TranslateException('General_ExceptionDatabaseVersion', array('MySQL', $serverVersion, $requiredVersion)));
+            throw new Exception(Piwik::translate('General_ExceptionDatabaseVersion', array('MySQL', $serverVersion, $requiredVersion)));
         }
     }
 
@@ -113,7 +112,7 @@ class Mysql extends Zend_Db_Adapter_Pdo_Mysql implements AdapterInterface
         if (version_compare($serverVersion, '5.0.3') >= 0
             && version_compare($clientVersion, '5.0.3') < 0
         ) {
-            throw new Exception(Piwik_TranslateException('General_ExceptionIncompatibleClientServerVersions', array('MySQL', $clientVersion, $serverVersion)));
+            throw new Exception(Piwik::translate('General_ExceptionIncompatibleClientServerVersions', array('MySQL', $clientVersion, $serverVersion)));
         }
     }
 
@@ -207,8 +206,8 @@ class Mysql extends Zend_Db_Adapter_Pdo_Mysql implements AdapterInterface
      * Prepares and executes an SQL statement with bound data.
      * Caches prepared statements to avoid preparing the same query more than once
      *
-     * @param string|Zend_Db_Select $sql   The SQL statement with placeholders.
-     * @param array $bind  An array of data to bind to the placeholders.
+     * @param string|Zend_Db_Select $sql The SQL statement with placeholders.
+     * @param array $bind An array of data to bind to the placeholders.
      * @return Zend_Db_Statement_Interface
      */
     public function query($sql, $bind = array())

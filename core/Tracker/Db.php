@@ -5,8 +5,6 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Piwik
  */
 namespace Piwik\Tracker;
 
@@ -21,8 +19,6 @@ use Piwik\Tracker\Db\DbException;
  * We can't afford to have a dependency with the Zend_Db module in Tracker.
  * We wrote this simple class
  *
- * @package Piwik
- * @subpackage Tracker
  */
 abstract class Db
 {
@@ -133,8 +129,8 @@ abstract class Db
     /**
      * Returns an array containing all the rows of a query result, using optional bound parameters.
      *
-     * @param string $query       Query
-     * @param array $parameters  Parameters to bind
+     * @param string $query Query
+     * @param array $parameters Parameters to bind
      * @see query()
      * @throws \Piwik\Tracker\Db\DbException if an exception occurred
      */
@@ -143,8 +139,8 @@ abstract class Db
     /**
      * Returns the first row of a query result, using optional bound parameters.
      *
-     * @param string $query       Query
-     * @param array $parameters  Parameters to bind
+     * @param string $query Query
+     * @param array $parameters Parameters to bind
      * @see also query()
      *
      * @throws DbException if an exception occurred
@@ -155,8 +151,8 @@ abstract class Db
      * This function is a proxy to fetch(), used to maintain compatibility with Zend_Db interface
      *
      * @see fetch()
-     * @param string $query       Query
-     * @param array $parameters  Parameters to bind
+     * @param string $query Query
+     * @param array $parameters Parameters to bind
      * @return
      */
     public function fetchRow($query, $parameters = array())
@@ -168,8 +164,8 @@ abstract class Db
      * This function is a proxy to fetch(), used to maintain compatibility with Zend_Db interface
      *
      * @see fetch()
-     * @param string $query       Query
-     * @param array $parameters  Parameters to bind
+     * @param string $query Query
+     * @param array $parameters Parameters to bind
      * @return bool|mixed
      */
     public function fetchOne($query, $parameters = array())
@@ -182,8 +178,8 @@ abstract class Db
      * This function is a proxy to fetch(), used to maintain compatibility with Zend_Db + PDO interface
      *
      * @see fetch()
-     * @param string $query       Query
-     * @param array $parameters  Parameters to bind
+     * @param string $query Query
+     * @param array $parameters Parameters to bind
      * @return
      */
     public function exec($query, $parameters = array())
@@ -194,7 +190,7 @@ abstract class Db
     /**
      * Return number of affected rows in last query
      *
-     * @param mixed $queryResult  Result from query()
+     * @param mixed $queryResult Result from query()
      * @return int
      */
     abstract public function rowCount($queryResult);
@@ -202,8 +198,8 @@ abstract class Db
     /**
      * Executes a query, using optional bound parameters.
      *
-     * @param string $query       Query
-     * @param array $parameters  Parameters to bind array('idsite'=> 1)
+     * @param string $query Query
+     * @param array $parameters Parameters to bind array('idsite'=> 1)
      *
      * @return PDOStatement or false if failed
      * @throws DbException if an exception occurred

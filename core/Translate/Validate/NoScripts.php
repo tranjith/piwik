@@ -5,18 +5,11 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Piwik
  */
 
 namespace Piwik\Translate\Validate;
 
-use Piwik\Translate\Validate\ValidateAbstract;
-use Piwik\Common;
-
 /**
- * @package Piwik
- * @subpackage Piwik_Translate
  */
 class NoScripts extends ValidateAbstract
 {
@@ -27,7 +20,6 @@ class NoScripts extends ValidateAbstract
      * @param array $translations
      *
      * @return boolean
-     *
      */
     public function isValid($translations)
     {

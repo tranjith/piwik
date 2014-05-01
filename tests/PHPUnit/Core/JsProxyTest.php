@@ -3,7 +3,6 @@ class Test_Piwik_JsProxy extends PHPUnit_Framework_TestCase
 {
     /**
      * @group Core
-     * @group JsProxy
      */
     function testPiwikJs()
     {
@@ -22,7 +21,6 @@ class Test_Piwik_JsProxy extends PHPUnit_Framework_TestCase
 
     /**
      * @group Core
-     * @group JsProxy
      */
     function testPiwikPhp()
     {
@@ -35,10 +33,14 @@ class Test_Piwik_JsProxy extends PHPUnit_Framework_TestCase
         curl_close($curlHandle);
 
         $this->assertEquals($responseInfo["http_code"], 200, 'Ok response');
+        if ("R0lGODlhAQABAIAAAAAAAAAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==" != base64_encode($fullResponse)) {
+            \Piwik\Log::info("testPiwikPhp invalid response content: " . $fullResponse);
+        }
+
         $this->assertEquals(
             "R0lGODlhAQABAIAAAAAAAAAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==",
-            base64_encode($fullResponse),
-            'checking for image content'
+            base64_encode($fullResponse) ,
+            'checking for image content' . "\n\n\n\nRaw content: \n\n\n" . $fullResponse
         );
     }
 
@@ -47,6 +49,6 @@ class Test_Piwik_JsProxy extends PHPUnit_Framework_TestCase
      */
     private function getStaticSrvUrl()
     {
-        return Test_Piwik_BaseFixture::getRootUrl();
+        return Fixture::getRootUrl();
     }
 }

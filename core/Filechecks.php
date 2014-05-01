@@ -5,8 +5,6 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Piwik
  */
 namespace Piwik;
 
@@ -40,15 +38,16 @@ class Filechecks
     {
         $resultCheck = array();
         foreach ($directoriesToCheck as $directoryToCheck) {
+
             if (!preg_match('/^' . preg_quote(PIWIK_USER_PATH, '/') . '/', $directoryToCheck)) {
                 $directoryToCheck = PIWIK_USER_PATH . $directoryToCheck;
             }
 
-            // Create an empty directory
-            $isFile = strpos($directoryToCheck, '.') !== false;
-            if (!$isFile && !file_exists($directoryToCheck)) {
-                Filesystem::mkdir($directoryToCheck);
+            if(strpos($directoryToCheck, '/tmp/') !== false) {
+                $directoryToCheck = SettingsPiwik::rewriteTmpPathWithHostname($directoryToCheck);
             }
+
+            Filesystem::mkdir($directoryToCheck);
 
             $directory = Filesystem::realpath($directoryToCheck);
             $resultCheck[$directory] = false;
@@ -85,12 +84,19 @@ class Filechecks
         // Also give the chown since the chmod is only 755
         if (!SettingsServer::isWindows()) {
             $realpath = Filesystem::realpath(PIWIK_INCLUDE_PATH . '/');
-            $directoryList = "<code>chown -R www-data:www-data " . $realpath . "</code><br/>" . $directoryList;
+            $directoryList = "<code>chown -R www-data:www-data " . $realpath . "</code><br />" . $directoryList;
         }
 
-        // The error message mentions chmod 777 in case users can't chown
-        $directoryMessage = "<p><b>Piwik couldn't write to some directories</b>.</p>
-							<p>Try to Execute the following commands on your server, to allow Write access on these directories:</p>"
+        if(function_exists('shell_exec')) {
+            $currentUser = trim(shell_exec('whoami'));
+            if(!empty($currentUser)) {
+                $optionalUserInfo = " (running as user '" . $currentUser . "')";
+            }
+        }
+
+        $directoryMessage = "<p><b>Piwik couldn't write to some directories $optionalUserInfo</b>.</p>";
+        $directoryMessage .= "<p>Try to Execute the following commands on your server, to allow Write access on these directories"
+            . ":</p>"
             . "<blockquote>$directoryList</blockquote>"
             . "<p>If this doesn't work, you can try to create the directories with your FTP software, and set the CHMOD to 0755 (or 0777 if 0755 is not enough). To do so with your FTP software, right click on the directories then click permissions.</p>"
             . "<p>After applying the modifications, you can <a href='index.php'>refresh the page</a>.</p>"
@@ -110,13 +116,19 @@ class Filechecks
         $messages[] = true;
 
         $manifest = PIWIK_INCLUDE_PATH . '/config/manifest.inc.php';
-        if (!file_exists($manifest)) {
-            $suffix = " If you are deploying Piwik from Git, this message is normal.";
-            $messages[] = Piwik_Translate('General_WarningFileIntegrityNoManifest') . $suffix;
-            return $messages;
+
+
+        if (file_exists($manifest)) {
+            require_once $manifest;
         }
 
-        require_once $manifest;
+        if (!class_exists('Piwik\\Manifest')) {
+            $messages[] = Piwik::translate('General_WarningFileIntegrityNoManifest')
+                        . ' '
+                        . Piwik::translate('General_WarningFileIntegrityNoManifestDeployingFromGit');
+
+            return $messages;
+        }
 
         $files = \Piwik\Manifest::$files;
 
@@ -125,12 +137,12 @@ class Filechecks
         foreach ($files as $path => $props) {
             $file = PIWIK_INCLUDE_PATH . '/' . $path;
 
-            if (!file_exists($file)) {
-                $messages[] = Piwik_Translate('General_ExceptionMissingFile', $file);
+            if (!file_exists($file) || !is_readable($file)) {
+                $messages[] = Piwik::translate('General_ExceptionMissingFile', $file);
             } else if (filesize($file) != $props[0]) {
                 if (!$hasMd5 || in_array(substr($path, -4), array('.gif', '.ico', '.jpg', '.png', '.swf'))) {
                     // files that contain binary data (e.g., images) must match the file size
-                    $messages[] = Piwik_Translate('General_ExceptionFilesizeMismatch', array($file, $props[0], filesize($file)));
+                    $messages[] = Piwik::translate('General_ExceptionFilesizeMismatch', array($file, $props[0], filesize($file)));
                 } else {
                     // convert end-of-line characters and re-test text files
                     $content = @file_get_contents($file);
@@ -138,11 +150,11 @@ class Filechecks
                     if ((strlen($content) != $props[0])
                         || (@md5($content) !== $props[1])
                     ) {
-                        $messages[] = Piwik_Translate('General_ExceptionFilesizeMismatch', array($file, $props[0], filesize($file)));
+                        $messages[] = Piwik::translate('General_ExceptionFilesizeMismatch', array($file, $props[0], filesize($file)));
                     }
                 }
             } else if ($hasMd5file && (@md5_file($file) !== $props[1])) {
-                $messages[] = Piwik_Translate('General_ExceptionFileIntegrity', $file);
+                $messages[] = Piwik::translate('General_ExceptionFileIntegrity', $file);
             }
         }
 
@@ -151,7 +163,7 @@ class Filechecks
         }
 
         if (!$hasMd5file) {
-            $messages[] = Piwik_Translate('General_WarningFileIntegrityNoMd5file');
+            $messages[] = Piwik::translate('General_WarningFileIntegrityNoMd5file');
         }
 
         return $messages;
@@ -183,11 +195,11 @@ class Filechecks
         $message = "Please check that the web server has enough permission to write to these files/directories:<br />";
 
         if (SettingsServer::isWindows()) {
-            $message .= "On Windows, check that the folder is not read only and is writable.
+            $message .= "On Windows, check that the folder is not read only and is writable.\n
 						You can try to execute:<br />";
         } else {
             $message .= "For example, on a Linux server if your Apache httpd user
-						is www-data, you can try to execute:<br />"
+						is www-data, you can try to execute:<br />\n"
                 . "<code>chown -R www-data:www-data " . $path . "</code><br />";
         }
 
@@ -205,7 +217,7 @@ class Filechecks
     private static function getMakeWritableCommand($realpath)
     {
         if (SettingsServer::isWindows()) {
-            return "<code>cacls $realpath /t /g " . get_current_user() . ":f</code><br />";
+            return "<code>cacls $realpath /t /g " . get_current_user() . ":f</code><br />\n";
         }
         return "<code>chmod -R 0755 $realpath</code><br />";
     }

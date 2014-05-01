@@ -5,12 +5,11 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik_Plugins
- * @package ImageGraph
  */
 namespace Piwik\Plugins\ImageGraph;
 
 use Exception;
+use Piwik\Archive\DataTableFactory;
 use Piwik\Common;
 use Piwik\Filesystem;
 use Piwik\Period;
@@ -31,9 +30,9 @@ use Piwik\Translate;
  *
  * See also <a href='http://piwik.org/docs/analytics-api/metadata/#toc-static-image-graphs'>How to embed static Image Graphs?</a> for more information.
  *
- * @package ImageGraph
+ * @method static \Piwik\Plugins\ImageGraph\API getInstance()
  */
-class API
+class API extends \Piwik\Plugin\API
 {
     const FILENAME_KEY = 'filename';
     const TRUNCATE_KEY = 'truncate';
@@ -76,11 +75,11 @@ class API
     );
 
     static private $DEFAULT_GRAPH_TYPE_OVERRIDE = array(
-        'UserSettings_getPlugin'  => array(
+        'UserSettings_getPlugin'    => array(
             false // override if !$isMultiplePeriod
             => StaticGraph::GRAPH_TYPE_HORIZONTAL_BAR,
         ),
-        'Referers_getRefererType' => array(
+        'Referrers_getReferrerType' => array(
             false // override if !$isMultiplePeriod
             => StaticGraph::GRAPH_TYPE_HORIZONTAL_BAR,
         ),
@@ -103,20 +102,6 @@ class API
     // number of row evolutions to plot when no labels are specified, can be overridden using &filter_limit
     const DEFAULT_NB_ROW_EVOLUTIONS = 5;
     const MAX_NB_ROW_LABELS = 10;
-
-    static private $instance = null;
-
-    /**
-     * @return \Piwik\Plugins\ImageGraph\API
-     */
-    static public function getInstance()
-    {
-        if (self::$instance == null) {
-            $c = __CLASS__;
-            self::$instance = new $c();
-        }
-        return self::$instance;
-    }
 
     public function get(
         $idSite,
@@ -155,7 +140,7 @@ class API
         $useUnicodeFont = array(
             'am', 'ar', 'el', 'fa', 'fi', 'he', 'ja', 'ka', 'ko', 'te', 'th', 'zh-cn', 'zh-tw',
         );
-        $languageLoaded = Translate::getInstance()->getLanguageLoaded();
+        $languageLoaded = Translate::getLanguageLoaded();
         $font = self::getFontPath(self::DEFAULT_FONT);
         if (in_array($languageLoaded, $useUnicodeFont)) {
             $unicodeFontPath = self::getFontPath(self::UNICODE_FONT);
@@ -210,7 +195,7 @@ class API
                 $availableGraphTypes = StaticGraph::getAvailableStaticGraphTypes();
                 if (!in_array($graphType, $availableGraphTypes)) {
                     throw new Exception(
-                        Piwik_TranslateException(
+                        Piwik::translate(
                             'General_ExceptionInvalidStaticGraphType',
                             array($graphType, implode(', ', $availableGraphTypes))
                         )
@@ -247,7 +232,7 @@ class API
                 foreach ($ordinateColumns as $column) {
                     if (empty($reportColumns[$column])) {
                         throw new Exception(
-                            Piwik_Translate(
+                            Piwik::translate(
                                 'ImageGraph_ColumnOrdinateMissing',
                                 array($column, implode(',', array_keys($reportColumns)))
                             )
@@ -320,7 +305,7 @@ class API
 
                 //@review this test will need to be updated after evaluating the @review comment in API/API.php
                 if (!$processedReport) {
-                    throw new Exception(Piwik_Translate('General_NoDataForGraph'));
+                    throw new Exception(Piwik::translate('General_NoDataForGraph'));
                 }
 
                 // restoring generic filter parameters
@@ -420,7 +405,7 @@ class API
             } else // if the report has no dimension we have multiple reports each with only one row within the reportData
             {
                 // $periodsData instanceof Simple[]
-                $periodsData = array_values($reportData->getArray());
+                $periodsData = array_values($reportData->getDataTables());
                 $periodsCount = count($periodsData);
 
                 for ($i = 0; $i < $periodsCount; $i++) {
@@ -452,13 +437,13 @@ class API
                         }
                     }
 
-                    $rowId = $periodsData[$i]->metadata['period']->getLocalizedShortString();
+                    $rowId = $periodsData[$i]->getMetadata(DataTableFactory::TABLE_METADATA_PERIOD_INDEX)->getLocalizedShortString();
                     $abscissaSeries[] = Common::unsanitizeInputValue($rowId);
                 }
             }
 
             if (!$hasData || !$hasNonZeroValue) {
-                throw new Exception(Piwik_Translate('General_NoDataForGraph'));
+                throw new Exception(Piwik::translate('General_NoDataForGraph'));
             }
 
             //Setup the graph

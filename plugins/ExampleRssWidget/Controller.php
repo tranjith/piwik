@@ -5,29 +5,26 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik_Plugins
- * @package ExampleRssWidget
  */
 
 namespace Piwik\Plugins\ExampleRssWidget;
 
 use Exception;
-use Piwik\Plugins\ExampleRssWidget\RssRenderer;
+use Piwik\Piwik;
 
 /**
  *
- * @package ExampleRssWidget
  */
-class Controller extends \Piwik\Controller
+class Controller extends \Piwik\Plugin\Controller
 {
     public function rssPiwik()
     {
         try {
             $rss = new RssRenderer('http://feeds.feedburner.com/Piwik');
             $rss->showDescription(true);
-            echo $rss->get();
+            return $rss->get();
         } catch (Exception $e) {
-            $this->error($e);
+            return $this->error($e);
         }
     }
 
@@ -36,11 +33,11 @@ class Controller extends \Piwik\Controller
         try {
             $rss = new RssRenderer('http://feeds.feedburner.com/PiwikReleases');
             $rss->setCountPosts(1);
-            $rss->showDescription(false);
-            $rss->showContent(true);
-            echo $rss->get();
+            $rss->showDescription(true);
+            $rss->showContent(false);
+            return $rss->get();
         } catch (Exception $e) {
-            $this->error($e);
+            return $this->error($e);
         }
     }
 
@@ -49,8 +46,8 @@ class Controller extends \Piwik\Controller
      */
     protected function error($e)
     {
-        echo '<div class="pk-emptyDataTable">'
-            . Piwik_Translate('General_ErrorRequest')
+        return '<div class="pk-emptyDataTable">'
+            . Piwik::translate('General_ErrorRequest')
             . ' - ' . $e->getMessage() . '</div>';
     }
 }

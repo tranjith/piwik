@@ -5,39 +5,25 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik_Plugins
- * @package Overlay
  */
 namespace Piwik\Plugins\Overlay;
 
 use Exception;
-use Piwik\Config;
-use Piwik\Piwik;
 use Piwik\Access;
+use Piwik\Config;
 use Piwik\DataTable;
-use Piwik\Tracker\Action;
-use Piwik\Plugins\SitesManager\SitesManager;
+use Piwik\Piwik;
 use Piwik\Plugins\SitesManager\API as APISitesManager;
+use Piwik\Plugins\SitesManager\SitesManager;
 use Piwik\Plugins\Transitions\API as APITransitions;
+use Piwik\Tracker\PageUrl;
 
-
-class API
+/**
+ * Class API
+ * @method static \Piwik\Plugins\Overlay\API getInstance()
+ */
+class API extends \Piwik\Plugin\API
 {
-
-    private static $instance = null;
-
-    /**
-     * Get Singleton instance
-     * @return \Piwik\Plugins\Overlay\API
-     */
-    public static function getInstance()
-    {
-        if (self::$instance == null) {
-            self::$instance = new self;
-        }
-        return self::$instance;
-    }
-
     /**
      * Get translation strings
      */
@@ -52,7 +38,7 @@ class API
             'link'             => 'Overlay_Link'
         );
 
-        return array_map('Piwik_Translate', $translations);
+        return array_map(array('\\Piwik\\Piwik','translate'), $translations);
     }
 
     /**
@@ -86,7 +72,7 @@ class API
     {
         $this->authenticate($idSite);
 
-        $url = Action::excludeQueryParametersFromUrl($url, $idSite);
+        $url = PageUrl::excludeQueryParametersFromUrl($url, $idSite);
         // we don't unsanitize $url here. it will be done in the Transitions plugin.
 
         $resultDataTable = new DataTable;
@@ -117,11 +103,28 @@ class API
     /** Do cookie authentication. This way, the token can remain secret. */
     private function authenticate($idSite)
     {
-        $notification = null;
-        Piwik_PostEvent('FrontController.initAuthenticationObject',
-            array(&$notification, $allowCookieAuthentication = true));
+        /**
+         * Triggered immediately before the user is authenticated.
+         * 
+         * This event can be used by plugins that provide their own authentication mechanism
+         * to make that mechanism available. Subscribers should set the `'auth'` object in
+         * the {@link Piwik\Registry} to an object that implements the {@link Piwik\Auth} interface.
+         * 
+         * **Example**
+         * 
+         *     use Piwik\Registry;
+         * 
+         *     public function initAuthenticationObject($activateCookieAuth)
+         *     {
+         *         Registry::set('auth', new LDAPAuth($activateCookieAuth));
+         *     }
+         * 
+         * @param bool $activateCookieAuth Whether authentication based on `$_COOKIE` values should
+         *                                        be allowed.
+         */
+        Piwik::postEvent('Request.initAuthenticationObject', array($activateCookieAuth = true));
 
-        $auth = \Zend_Registry::get('auth');
+        $auth = \Piwik\Registry::get('auth');
         $success = Access::getInstance()->reloadAccess($auth);
 
         if (!$success) {

@@ -5,19 +5,16 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik_Plugins
- * @package Transitions
  */
 namespace Piwik\Plugins\Transitions;
 
+use Piwik\Piwik;
 use Piwik\View;
 
 /**
- * @package Transitions
  */
-class Controller extends \Piwik\Controller
+class Controller extends \Piwik\Plugin\Controller
 {
-
     /**
      * Since the metric translations are taken from different plugins,
      * it makes the rest of the code easier to read and maintain when we
@@ -32,13 +29,13 @@ class Controller extends \Piwik\Controller
         'fromPreviousSiteSearches'       => 'Transitions_FromPreviousSiteSearches',
         'fromPreviousSiteSearchesInline' => 'Transitions_FromPreviousSiteSearchesInline',
         'fromSearchEngines'              => 'Transitions_FromSearchEngines',
-        'fromSearchEnginesInline'        => 'Referers_TypeSearchEngines',
+        'fromSearchEnginesInline'        => 'Referrers_TypeSearchEngines',
         'fromWebsites'                   => 'Transitions_FromWebsites',
-        'fromWebsitesInline'             => 'Referers_TypeWebsites',
+        'fromWebsitesInline'             => 'Referrers_TypeWebsites',
         'fromCampaigns'                  => 'Transitions_FromCampaigns',
-        'fromCampaignsInline'            => 'Referers_TypeCampaigns',
+        'fromCampaignsInline'            => 'Referrers_TypeCampaigns',
         'directEntries'                  => 'Transitions_DirectEntries',
-        'directEntriesInline'            => 'Referers_TypeDirectEntries',
+        'directEntriesInline'            => 'Referrers_TypeDirectEntries',
         'toFollowingPages'               => 'Transitions_ToFollowingPages',
         'toFollowingPagesInline'         => 'Transitions_ToFollowingPagesInline',
         'toFollowingSiteSearches'        => 'Transitions_ToFollowingSiteSearches',
@@ -54,7 +51,6 @@ class Controller extends \Piwik\Controller
 
     /**
      * Translations that are added to JS
-     * (object Piwik_Transitions_Translations)
      */
     private static $jsTranslations = array(
         'XOfY'                   => 'Transitions_XOutOfYVisits',
@@ -68,7 +64,7 @@ class Controller extends \Piwik\Controller
 
     public static function getTranslation($key)
     {
-        return Piwik_Translate(self::$metricTranslations[$key]);
+        return Piwik::translate(self::$metricTranslations[$key]);
     }
 
     /**
@@ -79,14 +75,14 @@ class Controller extends \Piwik\Controller
     {
         $view = new View('@Transitions/renderPopover');
         $view->translations = $this->getTranslations();
-        echo $view->render();
+        return $view->render();
     }
 
     public function getTranslations()
     {
         $translations = self::$metricTranslations + self::$jsTranslations;
         foreach ($translations as &$message) {
-            $message = Piwik_Translate($message);
+            $message = Piwik::translate($message);
         }
         return $translations;
     }

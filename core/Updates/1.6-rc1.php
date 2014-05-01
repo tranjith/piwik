@@ -5,21 +5,21 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Updates
  */
+
+namespace Piwik\Updates;
+
 use Piwik\Updates;
 
 /**
- * @package Updates
  */
-class Piwik_Updates_1_6_rc1 extends Updates
+class Updates_1_6_rc1 extends Updates
 {
     static function update()
     {
         try {
-            \Piwik\PluginsManager::getInstance()->activatePlugin('ImageGraph');
-        } catch (Exception $e) {
+            \Piwik\Plugin\Manager::getInstance()->activatePlugin('ImageGraph');
+        } catch (\Exception $e) {
         }
     }
 }

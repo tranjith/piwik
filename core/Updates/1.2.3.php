@@ -5,20 +5,20 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Updates
  */
-use Piwik\Config;
+
+namespace Piwik\Updates;
+
 use Piwik\Common;
+use Piwik\Config;
 use Piwik\Updater;
 use Piwik\Updates;
 
 /**
- * @package Updates
  */
-class Piwik_Updates_1_2_3 extends Updates
+class Updates_1_2_3 extends Updates
 {
-    static function getSql($schema = 'Myisam')
+    static function getSql()
     {
         return array(
             // LOAD DATA INFILE uses the database's charset

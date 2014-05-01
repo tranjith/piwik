@@ -5,17 +5,12 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Piwik
  */
 
 namespace Piwik\Translate\Filter;
 
-use Piwik\Translate\Filter\FilterAbstract;
 
 /**
- * @package Piwik
- * @subpackage Piwik_Translate
  */
 class UnnecassaryWhitespaces extends FilterAbstract
 {
@@ -26,7 +21,7 @@ class UnnecassaryWhitespaces extends FilterAbstract
      *
      * @param array $baseTranslations
      */
-    public function __construct($baseTranslations=array())
+    public function __construct($baseTranslations = array())
     {
         $this->baseTranslations = $baseTranslations;
     }
@@ -37,7 +32,6 @@ class UnnecassaryWhitespaces extends FilterAbstract
      * @param array $translations
      *
      * @return array   filtered translations
-     *
      */
     public function filter($translations)
     {
@@ -46,7 +40,7 @@ class UnnecassaryWhitespaces extends FilterAbstract
 
                 $baseTranslation = '';
                 if (isset($this->baseTranslations[$pluginName][$key])) {
-                    $baseTranslation  = $this->baseTranslations[$pluginName][$key];
+                    $baseTranslation = $this->baseTranslations[$pluginName][$key];
                 }
 
                 // remove excessive line breaks (and leading/trailing whitespace) from translations

@@ -5,14 +5,11 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Piwik
  */
 
 namespace Piwik;
 
 use Piwik\Unzip\Gzip;
-use Piwik\Unzip\UncompressInterface;
 use Piwik\Unzip\PclZip;
 use Piwik\Unzip\Tar;
 use Piwik\Unzip\ZipArchive;
@@ -20,15 +17,14 @@ use Piwik\Unzip\ZipArchive;
 /**
  * Unzip wrapper around ZipArchive and PclZip
  *
- * @package Piwik
  */
 class Unzip
 {
     /**
      * Factory method to create an unarchiver
      *
-     * @param string $name      Name of unarchiver
-     * @param string $filename  Name of .zip archive
+     * @param string $name Name of unarchiver
+     * @param string $filename Name of .zip archive
      * @return \Piwik\Unzip\UncompressInterface
      */
     static public function factory($name, $filename)

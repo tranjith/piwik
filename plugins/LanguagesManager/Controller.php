@@ -5,8 +5,6 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik_Plugins
- * @package LanguagesManager
  *
  */
 namespace Piwik\Plugins\LanguagesManager;
@@ -15,16 +13,14 @@ use Piwik\Common;
 use Piwik\DbHelper;
 use Piwik\Piwik;
 use Piwik\Url;
-use Zend_Registry;
 
 /**
- * @package LanguagesManager
  */
-class Controller extends \Piwik\Controller
+class Controller extends \Piwik\Plugin\Controller
 {
     /**
      * anonymous = in the session
-     * authenticated user = in the session and in DB
+     * authenticated user = in the session
      */
     public function saveLanguage()
     {
@@ -34,13 +30,8 @@ class Controller extends \Piwik\Controller
         if (DbHelper::isInstalled()) {
             $this->checkTokenInUrl();
         }
+
         LanguagesManager::setLanguageForSession($language);
-        if (Zend_Registry::isRegistered('access')) {
-            $currentUser = Piwik::getCurrentUserLogin();
-            if ($currentUser && $currentUser !== 'anonymous') {
-                API::getInstance()->setLanguageForUser($currentUser, $language);
-            }
-        }
-        Url::redirectToReferer();
+        Url::redirectToReferrer();
     }
 }

@@ -31,12 +31,14 @@
 		
 		
 		<daysAgo>0</daysAgo>
+		<referrerType>direct</referrerType>
 		<referralSummary>Direct Entry</referralSummary>
 	</firstVisit>
 	<lastVisit>
 		
 		
 		<daysAgo>0</daysAgo>
+		<referrerType>direct</referrerType>
 		<referralSummary>Direct Entry</referralSummary>
 	</lastVisit>
 	<visitsAggregated>2</visitsAggregated>
@@ -53,6 +55,7 @@
 			<visitEcommerceStatus>none</visitEcommerceStatus>
 			<visitEcommerceStatusIcon />
 			<searches>0</searches>
+			<events>0</events>
 			<actions>1</actions>
 			<actionDetails>
 				<row>
@@ -60,8 +63,8 @@
 					<url>http://test.com</url>
 					<pageTitle />
 					<pageIdAction>6</pageIdAction>
-					<pageId>5</pageId>
 					
+					<pageId>5</pageId>
 					<icon>plugins/Zeitgeist/images/link.gif</icon>
 				</row>
 			</actionDetails>
@@ -124,7 +127,7 @@
 			<browserCode>FF</browserCode>
 			<browserVersion>3.0</browserVersion>
 			<screenType>dual</screenType>
-			<deviceType>desktop</deviceType>
+			<deviceType>Desktop</deviceType>
 			<resolution>1111x222</resolution>
 			<screenTypeIcon>plugins/UserSettings/images/screens/dual.gif</screenTypeIcon>
 			<plugins>flash, java</plugins>
@@ -157,6 +160,7 @@
 			<visitEcommerceStatus>none</visitEcommerceStatus>
 			<visitEcommerceStatusIcon />
 			<searches>0</searches>
+			<events>0</events>
 			<actions>1</actions>
 			<actionDetails>
 				<row>
@@ -174,8 +178,8 @@
 					<url>http://example.org/homepage</url>
 					<pageTitle>Homepage</pageTitle>
 					<pageIdAction>2</pageIdAction>
-					<pageId>4</pageId>
 					
+					<pageId>4</pageId>
 					<icon />
 				</row>
 			</actionDetails>
@@ -238,7 +242,7 @@
 			<browserCode>FF</browserCode>
 			<browserVersion>3.0</browserVersion>
 			<screenType>dual</screenType>
-			<deviceType>desktop</deviceType>
+			<deviceType>Desktop</deviceType>
 			<resolution>1111x222</resolution>
 			<screenTypeIcon>plugins/UserSettings/images/screens/dual.gif</screenTypeIcon>
 			<plugins>flash, java</plugins>

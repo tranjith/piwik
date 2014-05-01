@@ -6,37 +6,36 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik_Plugins
- * @package Widgetize
  */
 
 namespace Piwik\Plugins\Widgetize;
+use Piwik\Menu\MenuTop;
+use Piwik\Piwik;
 
 /**
  *
- * @package Widgetize
  */
 class Widgetize extends \Piwik\Plugin
 {
     /**
-     * @see Piwik_Plugin::getListHooksRegistered
+     * @see Piwik\Plugin::getListHooksRegistered
      */
     public function getListHooksRegistered()
     {
         return array(
-            'AssetManager.getJsFiles'                => 'getJsFiles',
+            'AssetManager.getJavaScriptFiles'        => 'getJsFiles',
             'AssetManager.getStylesheetFiles'        => 'getStylesheetFiles',
-            'TopMenu.add'                            => 'addTopMenu',
+            'Menu.Top.addItems'                      => 'addTopMenu',
             'Translate.getClientSideTranslationKeys' => 'getClientSideTranslationKeys'
         );
     }
 
     public function addTopMenu()
     {
-        $tooltip = Piwik_Translate('Widgetize_TopLinkTooltip');
+        $tooltip = Piwik::translate('Widgetize_TopLinkTooltip');
         $urlParams = array('module' => 'Widgetize', 'action' => 'index', 'segment' => false);
 
-        Piwik_AddTopMenu('General_Widgets', $urlParams, true, 5, $isHTML = false, $tooltip);
+        MenuTop::addEntry('General_Widgets', $urlParams, true, 5, $isHTML = false, $tooltip);
     }
 
     public function getJsFiles(&$jsFiles)

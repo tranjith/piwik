@@ -5,18 +5,15 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik_Plugins
- * @package Annotations
  */
 namespace Piwik\Plugins\Annotations;
 
 use Exception;
+
+use Piwik\Date;
 use Piwik\Period;
 use Piwik\Period\Range;
 use Piwik\Piwik;
-use Piwik\Date;
-use Piwik\Plugins\Annotations\AnnotationList;
-use Piwik\ViewDataTable;
 use Piwik\Plugins\CoreVisualizations\Visualizations\JqplotGraph\Evolution as EvolutionViz;
 
 /**
@@ -28,25 +25,10 @@ require_once PIWIK_INCLUDE_PATH . '/plugins/Annotations/AnnotationList.php';
  * API for annotations plugin. Provides methods to create, modify, delete & query
  * annotations.
  *
- * @package Annotations
+ * @method static \Piwik\Plugins\Annotations\API getInstance()
  */
-class API
+class API extends \Piwik\Plugin\API
 {
-    static private $instance = null;
-
-    /**
-     * Returns this API's singleton instance.
-     *
-     * @return \Piwik\Plugins\Annotations\API
-     */
-    static public function getInstance()
-    {
-        if (self::$instance == null) {
-            self::$instance = new self;
-        }
-        return self::$instance;
-    }
-
     /**
      * Create a new annotation for a site.
      *
@@ -127,7 +109,7 @@ class API
      */
     public function delete($idSite, $idNote)
     {
-        $this->checkSingleIdSite($idSite, $extraMessage = "Note: Cannot delete multiple notes.");
+        $this->checkSingleIdSite($idSite, $extraMessage = "Note: Cannot delete annotations from multiple sites.");
 
         $annotations = new AnnotationList($idSite);
 
@@ -136,6 +118,23 @@ class API
 
         // remove the note & save the list
         $annotations->remove($idSite, $idNote);
+        $annotations->save($idSite);
+    }
+
+    /**
+     * Removes all annotations for a single site. Only super users can use this method.
+     *
+     * @param string $idSite The ID of the site to remove annotations for.
+     */
+    public function deleteAll($idSite)
+    {
+        $this->checkSingleIdSite($idSite, $extraMessage = "Note: Cannot delete annotations from multiple sites.");
+        Piwik::checkUserHasSuperUserAccess();
+
+        $annotations = new AnnotationList($idSite);
+
+        // remove the notes & save the list
+        $annotations->removeAll($idSite);
         $annotations->save($idSite);
     }
 
@@ -283,7 +282,7 @@ class API
     private function checkUserCanModifyOrDelete($idSite, $annotation)
     {
         if (!$annotation['canEditOrDelete']) {
-            throw new Exception(Piwik_Translate('Annotations_YouCannotModifyThisNote'));
+            throw new Exception(Piwik::translate('Annotations_YouCannotModifyThisNote'));
         }
     }
 
@@ -308,7 +307,7 @@ class API
      * @param string|bool $date The start date of the period (or the date range of a range
      *                           period).
      * @param string $period The period type ('day', 'week', 'month', 'year' or 'range').
-     * @param bool|int $lastN  Whether to include the last N periods in the range or not.
+     * @param bool|int $lastN Whether to include the last N periods in the range or not.
      *                         Ignored if period == range.
      *
      * @return Date[]   array of Date objects or array(false, false)

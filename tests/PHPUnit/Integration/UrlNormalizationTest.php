@@ -1,5 +1,6 @@
 <?php
 use Piwik\Common;
+use Piwik\Db;
 use Piwik\Tracker\Action;
 
 /**
@@ -12,7 +13,6 @@ class Test_Piwik_Integration_UrlNormalization extends IntegrationTestCase
     /**
      * @dataProvider getApiForTesting
      * @group        Integration
-     * @group        UrlNormalization
      */
     public function testApi($api, $params)
     {
@@ -68,7 +68,7 @@ class Test_Piwik_Integration_UrlNormalization extends IntegrationTestCase
             'date'       => $dateTime,
             'segment'    => 'referrerUrl==http://www.google.com/search?q=piwik',
         ));
-        $return[] = array('Referers.getKeywordsForPageUrl', array(
+        $return[] = array('Referrers.getKeywordsForPageUrl', array(
             'testSuffix'             => '_keywords',
             'idSite'                 => $idSite,
             'date'                   => $dateTime,
@@ -82,19 +82,18 @@ class Test_Piwik_Integration_UrlNormalization extends IntegrationTestCase
     /**
      * @@depends     testApi
      * @group        Integration
-     * @group        UrlNormalization
      */
     public function testCheckPostConditions()
     {
         $sql = "SELECT count(*) FROM " . Common::prefixTable('log_action');
-        $count = \Zend_Registry::get('db')->fetchOne($sql);
+        $count = Db::get()->fetchOne($sql);
         $expected = 9; // 4 urls + 5 titles
         $this->assertEquals($expected, $count, "only $expected actions expected");
 
         $sql = "SELECT name, url_prefix FROM " . Common::prefixTable('log_action')
-            . " WHERE type = " . Action::TYPE_ACTION_URL
+            . " WHERE type = " . Action::TYPE_PAGE_URL
             . " ORDER BY idaction ASC";
-        $urls = \Zend_Registry::get('db')->fetchAll($sql);
+        $urls = Db::get()->fetchAll($sql);
         $expected = array(
             array('name' => 'example.org/foo/bar.html', 'url_prefix' => 0),
             array('name' => 'example.org/foo/bar2.html', 'url_prefix' => 3),

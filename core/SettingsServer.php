@@ -5,34 +5,47 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Piwik
  */
 namespace Piwik;
 
 /**
- * Class SettingsServer holds the logic related to reading server/php settings
+ * Contains helper methods that can be used to get information regarding the
+ * server, its settings and currently used PHP settings.
  *
- * @package Piwik
  */
 class SettingsServer
 {
     /**
-     * Is the current script execution triggered by misc/cron/archive.php ?
+     * Returns true if the current script execution was triggered by the cron archiving script.
      *
-     * Helpful for error handling: directly throw error without HTML (eg. when DB is down)
+     * Helpful for error handling: directly throw error without HTML (eg. when DB is down).
+     * 
      * @return bool
+     * @api
      */
     public static function isArchivePhpTriggered()
     {
         return !empty($_GET['trigger'])
-        && $_GET['trigger'] == 'archivephp';
+                && $_GET['trigger'] == 'archivephp'
+                && Piwik::hasUserSuperUserAccess();
     }
 
     /**
-     * Returns true if running on Microsoft IIS 7 (or above)
+     * Returns true if the current request is a Tracker request.
+     *
+     * @return bool true if the current request is a Tracking API Request (ie. piwik.php)
+     */
+    public static function isTrackerApiRequest()
+    {
+        return !empty($GLOBALS['PIWIK_TRACKER_MODE']);
+    }
+
+
+    /**
+     * Returns `true` if running on Microsoft IIS 7 (or above), `false` if otherwise.
      *
      * @return bool
+     * @api
      */
     public static function isIIS()
     {
@@ -44,9 +57,10 @@ class SettingsServer
     }
 
     /**
-     * Returns true if running on an Apache web server
+     * Returns `true` if running on an Apache web server, `false` if otherwise.
      *
      * @return bool
+     * @api
      */
     public static function isApache()
     {
@@ -57,10 +71,11 @@ class SettingsServer
     }
 
     /**
-     * Returns true if running on a Windows operating system
+     * Returns `true` if running on a Windows operating system, `false` if otherwise.
      *
      * @since 0.6.5
-     * @return bool true if PHP detects it is running on Windows; else false
+     * @return bool
+     * @api
      */
     public static function isWindows()
     {
@@ -68,11 +83,12 @@ class SettingsServer
     }
 
     /**
-     * Determine if this php version/build supports timezone manipulation
-     * (e.g., php >= 5.2, or compiled with EXPERIMENTAL_DATE_SUPPORT=1 for
+     * Returns `true` if this PHP version/build supports timezone manipulation
+     * (e.g., php >= 5.2, or compiled with **EXPERIMENTAL_DATE_SUPPORT=1** for
      * php < 5.2).
      *
-     * @return bool  True if timezones supported; false otherwise
+     * @return bool
+     * @api
      */
     public static function isTimezoneSupportEnabled()
     {
@@ -85,9 +101,12 @@ class SettingsServer
     }
 
     /**
-     * Is GD php extension (sparklines, graphs) available?
+     * Returns `true` if the GD PHP extension is available, `false` if otherwise.
+     * 
+     * _Note: ImageGraph and the sparkline report visualization depend on the GD extension._
      *
      * @return bool
+     * @api
      */
     public static function isGdExtensionEnabled()
     {
@@ -112,9 +131,7 @@ class SettingsServer
         }
         $minimumMemoryLimit = Config::getInstance()->General['minimum_memory_limit'];
 
-        if (self::isArchivePhpTriggered()
-            && Piwik::isUserIsSuperUser()
-        ) {
+        if (self::isArchivePhpTriggered()) {
             // archive.php: no time limit, high memory limit
             self::setMaxExecutionTime(0);
             $minimumMemoryLimitWhenArchiving = Config::getInstance()->General['minimum_memory_limit_when_archiving'];
@@ -184,7 +201,7 @@ class SettingsServer
     /**
      * Set maximum script execution time.
      *
-     * @param int $executionTime  max execution time in seconds (0 = no limit)
+     * @param int $executionTime max execution time in seconds (0 = no limit)
      */
     public static function setMaxExecutionTime($executionTime)
     {

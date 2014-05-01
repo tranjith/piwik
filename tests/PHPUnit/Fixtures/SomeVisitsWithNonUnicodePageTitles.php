@@ -11,7 +11,7 @@ use Piwik\Plugins\SitesManager\API;
 /**
  * Adds one website and some visits with non unicode page titles.
  */
-class Test_Piwik_Fixture_SomeVisitsWithNonUnicodePageTitles extends Test_Piwik_BaseFixture
+class Test_Piwik_Fixture_SomeVisitsWithNonUnicodePageTitles extends Fixture
 {
     public $idSite1 = 1;
     public $dateTime = '2010-01-03 11:22:33';
@@ -35,7 +35,10 @@ class Test_Piwik_Fixture_SomeVisitsWithNonUnicodePageTitles extends Test_Piwik_B
     private function setUpWebsites()
     {
         API::getInstance()->setGlobalSearchParameters($searchKeywordParameters = 'gkwd', $searchCategoryParameters = 'gcat');
-        self::createWebsite(Date::factory($this->dateTime)->getDatetime(), 0, "Site 1 - Site search", $siteurl = false, $search = 1, $searchKwd = 'q,mykwd,p', $searchCat = 'cats');
+
+        if (!self::siteCreated($idSite = 1)) {
+            self::createWebsite(Date::factory($this->dateTime)->getDatetime(), 0, "Site 1 - Site search", $siteurl = false, $search = 1, $searchKwd = 'q,mykwd,p', $searchCat = 'cats');
+        }
     }
 
     private function trackVisits()

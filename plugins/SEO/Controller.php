@@ -5,8 +5,6 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik_Plugins
- * @package SEO
  */
 namespace Piwik\Plugins\SEO;
 
@@ -17,9 +15,8 @@ use Piwik\UrlHelper;
 use Piwik\View;
 
 /**
- * @package SEO
  */
-class Controller extends \Piwik\Controller
+class Controller extends \Piwik\Plugin\Controller
 {
     function getRank()
     {
@@ -45,6 +42,6 @@ class Controller extends \Piwik\Controller
         $renderer = Renderer::factory('php');
         $renderer->setSerialize(false);
         $view->ranks = $renderer->render($dataTable);
-        echo $view->render();
+        return $view->render();
     }
 }

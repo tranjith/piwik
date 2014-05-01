@@ -5,20 +5,15 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Piwik
  */
 namespace Piwik\Tracker\Db;
 
 use Exception;
 use Piwik\Tracker\Db;
-use Piwik\Tracker\Db\DbException;
 
 /**
  * mysqli wrapper
  *
- * @package Piwik
- * @subpackage Tracker
  */
 class Mysqli extends Db
 {
@@ -107,8 +102,8 @@ class Mysqli extends Db
      *
      * @see query()
      *
-     * @param string $query       Query
-     * @param array $parameters  Parameters to bind
+     * @param string $query Query
+     * @param array $parameters Parameters to bind
      * @return array
      * @throws Exception|DbException if an exception occured
      */
@@ -145,8 +140,8 @@ class Mysqli extends Db
      *
      * @see query()
      *
-     * @param string $query       Query
-     * @param array $parameters  Parameters to bind
+     * @param string $query Query
+     * @param array $parameters Parameters to bind
      *
      * @return array
      *
@@ -180,8 +175,8 @@ class Mysqli extends Db
     /**
      * Executes a query, using optional bound parameters.
      *
-     * @param string $query       Query
-     * @param array|string $parameters  Parameters to bind array('idsite'=> 1)
+     * @param string $query Query
+     * @param array|string $parameters Parameters to bind array('idsite'=> 1)
      *
      * @return bool|resource  false if failed
      * @throws DbException  if an exception occurred
@@ -268,13 +263,13 @@ class Mysqli extends Db
      */
     public function isErrNo($e, $errno)
     {
-        return mysqli_errno($this->_connection) == $errno;
+        return mysqli_errno($this->connection) == $errno;
     }
 
     /**
      * Return number of affected rows in last query
      *
-     * @param mixed $queryResult  Result from query()
+     * @param mixed $queryResult Result from query()
      * @return int
      */
     public function rowCount($queryResult)

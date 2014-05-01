@@ -5,8 +5,6 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package DataFiles
  */
 
 /**
@@ -40,7 +38,7 @@
  * Reference: http://www.php.net/manual/en/mbstring.encodings.php
  *
  * You can add new search engines icons by adding the icon in the
- * plugins/Referers/images/searchEngines directory using the format
+ * plugins/Referrers/images/searchEngines directory using the format
  * 'mainSearchEngineUrl.png'. Example: www.google.com.png
  *
  * To help Piwik link directly the search engine result page for the keyword,
@@ -184,6 +182,7 @@ if (!isset($GLOBALS['Piwik_SearchEngines'])) {
         'search.ask.com'                 => array('Ask'),
         '{}.search.ask.com'              => array('Ask'),
         'avira-int.ask.com'              => array('Ask'),
+        'searchqu.com'                   => array('Ask'),
 
         // Atlas
         'searchatlas.centrum.cz'         => array('Atlas', 'q', '?q={k}'),
@@ -212,6 +211,7 @@ if (!isset($GLOBALS['Piwik_SearchEngines'])) {
         '{}.bing.com'                    => array('Bing'),
         'msnbc.msn.com'                  => array('Bing'),
         'dizionario.it.msn.com'          => array('Bing'),
+        'enciclopedia.it.msn.com'        => array('Bing'),
 
         // Bing Cache
         'cc.bingj.com'                   => array('Bing'),
@@ -241,6 +241,9 @@ if (!isset($GLOBALS['Piwik_SearchEngines'])) {
 
         // Charter
         'www.charter.net'                => array('Charter', 'q', 'search/index.php?q={k}'),
+
+        // Claro Search
+        'claro-search.com'               => array('Claro Search', 'q', '?q={k}'),
 
         // Clix (Enhanced by Google)
         'pesquisa.clix.pt'               => array('Clix', 'question', 'resultado.html?in=Mundial&question={k}'),
@@ -437,6 +440,8 @@ if (!isset($GLOBALS['Piwik_SearchEngines'])) {
         '{}.wow.com'                     => array('Google'),
         'search.leonardo.it'             => array('Google'),
         'www.optuszoo.com.au'            => array('Google'),
+        'search.smt.docomo.ne.jp'        => array('Google', 'MT'),
+        'image.search.smt.docomo.ne.jp'     => array('Google', 'MT'),
 
 
         // Google Earth
@@ -484,6 +489,10 @@ if (!isset($GLOBALS['Piwik_SearchEngines'])) {
 
         // Google Video
         'video.google.com'               => array('Google Video', 'q', 'search?q={k}&tbm=vid'),
+
+        // Google Scholar
+        'scholar.google.com'             => array('Google Scholar', 'q', 'scholar?q={k}'),
+        'scholar.google.{}'              => array('Google Scholar'),
 
         // Google Wireless Transcoder
         // - does not appear to execute JavaScript
@@ -553,6 +562,7 @@ if (!isset($GLOBALS['Piwik_SearchEngines'])) {
         'search.b1.org'                  => array('InfoSpace', 'q'),
         'searchya.com'                   => array('InfoSpace', 'q'),
         'search.handycafe.com'           => array('InfoSpace', 'q'),
+        'search.v9.com'                  => array('InfoSpace', 'q'),
 
         /*
          * Other InfoSpace powered metasearches are handled in Common::extractSearchEngineInformationFromUrl()
@@ -705,6 +715,7 @@ if (!isset($GLOBALS['Piwik_SearchEngines'])) {
 
         // Orange
         'busca.orange.es'                => array('Orange', 'q', 'search?q={k}'),
+        'lemoteur.ke.voila.fr'           => array('Orange', 'kw', '?kw={k}'),
 
         // Paperball
         'www.paperball.de'               => array('Paperball', 'q', 'suche/s/?q={k}'),
@@ -717,6 +728,9 @@ if (!isset($GLOBALS['Piwik_SearchEngines'])) {
 
         // Plazoo
         'www.plazoo.com'                 => array('Plazoo', 'q'),
+
+        // PlusNetwork
+        'plusnetwork.com'                => array('PlusNetwork', 'q', '?q={k}'),
 
         // Poisk.Ru
         'poisk.ru'                       => array('Poisk.Ru', 'text', 'cgi-bin/poisk?text={k}', 'windows-1251'),
@@ -783,6 +797,9 @@ if (!isset($GLOBALS['Piwik_SearchEngines'])) {
         // Skynet
         'www.skynet.be'                  => array('Skynet', 'q', 'services/recherche/google?q={k}'),
 
+        // SmartAdressbar
+        'search.smartaddressbar.com'     => array('SmartAddressbar', 's', '?s={k}'),
+
         // Snap.do
         'search.snap.do'                 => array('Snap.do', 'q', '?q={k}'),
 
@@ -810,6 +827,9 @@ if (!isset($GLOBALS['Piwik_SearchEngines'])) {
         // Suchnase
         'www.suchnase.de'                => array('Suchnase', 'q'),
 
+        // Surf Canyon
+        'surfcanyon.com'                 => array('Surf Canyon', 'q'),
+
         // talimba
         'www.talimba.com'                => array('talimba', 'search', 'index.php?page=search/web&search={k}'),
 
@@ -822,7 +842,7 @@ if (!isset($GLOBALS['Piwik_SearchEngines'])) {
         // Teoma
         'www.teoma.com'                  => array('Teoma', 'q', 'web?q={k}'),
 
-        // Terra -- referer does not contain search phrase (keywords)
+        // Terra -- referrer does not contain search phrase (keywords)
         'buscador.terra.es'              => array('Terra', 'query', 'Default.aspx?source=Search&query={k}'),
         'buscador.terra.cl'              => array('Terra'),
         'buscador.terra.com.br'          => array('Terra'),
@@ -1010,11 +1030,4 @@ if (!isset($GLOBALS['Piwik_SearchEngines'])) {
         // Zoznam
         'www.zoznam.sk'                  => array('Zoznam', 's', 'hladaj.fcgi?s={k}&co=svet'),
     );
-
-    $GLOBALS['Piwik_SearchEngines_NameToUrl'] = array();
-    foreach ($GLOBALS['Piwik_SearchEngines'] as $url => $info) {
-        if (!isset($GLOBALS['Piwik_SearchEngines_NameToUrl'][$info[0]])) {
-            $GLOBALS['Piwik_SearchEngines_NameToUrl'][$info[0]] = $url;
-        }
-    }
 }

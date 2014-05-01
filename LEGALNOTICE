@@ -7,7 +7,7 @@ COPYRIGHT
 		Copyright (C) 2013  Matthieu Aubry
 
 	Individual contributions, components, and libraries are copyright
-	their respective authors.
+	of their respective authors.
 
 
 SOFTWARE LICENSE
@@ -108,21 +108,19 @@ THIRD-PARTY COMPONENTS AND LIBRARIES
 	Link:  http://mths.be/placeholder
 	License:  Dual licensed: MIT or GPL
 
+	Name:  jquery smartbanner
+	Link:  https://github.com/jasny/jquery.smartbanner
+	License:  Dual licensed: MIT
+
 	Name:  json2.js
 	Link:  http://json.org/
 	License:  Public domain
 	Notes:
 	- reference implementation
 
-	Name:  cssmin
-	Link:  http://code.google.com/p/cssmin/
-	License:  MIT
-
-	Name:  jsmin
-	Link:  http://code.google.com/p/jsmin-php/
-	License:  MIT
-	Notes:
-	- contains additional clause "The Software shall be used for Good, not Evil."
+	Name:  jshrink
+	Link: https://github.com/tedivm/jshrink
+	License: BSD-3-Clause
 
 	Name:  sparkline
 	Link:  https//sourceforge.net/projects/sparkline/
@@ -210,6 +208,15 @@ THIRD-PARTY COMPONENTS AND LIBRARIES
 	Link: http://raphaeljs.com/
 	License: MIT
 
+	Name: lessphp
+	Link: http://leafo.net/lessphp
+	License: GPL3/MIT
+
+	Name: Symfony Console Component
+	Link: https://github.com/symfony/Console
+	License: MIT
+
+
 THIRD-PARTY CONTENT
 
 	Name:  FamFamFam icons - Mark James
@@ -227,6 +234,27 @@ THIRD-PARTY CONTENT
 	License: LGPL v2.1
 	Notes:
 	- used in ImageGraph plugin
+
+	Name: plugins/CorePluginsAdmin/images/themes.png
+	Link: https://www.iconfinder.com/icons/17022/colors_draw_paint_icon
+	License: Free for commercial use
+
+	Name: plugins/Feedback/angularjs/ratefeature/thumbs-down.png
+	Link: https://www.iconfinder.com/icons/216428/down_thumbs_icon
+	License: Creative Commons (Attribution-Share Alike 3.0 Unported)
+
+	Name: plugins/Feedback/angularjs/ratefeature/thumbs-up.png
+	Link: https://www.iconfinder.com/icons/216429/thumbs_up_icon
+	License: Creative Commons (Attribution-Share Alike 3.0 Unported)
+
+	Name: plugins/CorePluginsAdmin/images/plugins.png
+	Link: http://findicons.com/icon/94051/tools_wizard?id=396912
+	License: GNU/GPL
+
+    Name: plugins/Insights/images/idea.png
+    Link: https://www.iconfinder.com/icons/6074/brainstorm_bulb_idea_jabber_light_icon
+    License: GPL
+    By: Alessandro Rei - http://www.kde-look.org/usermanager/search.php?username=mentalrey
 
 Notes:
 - the "New BSD" license refers to either the "Modified BSD" and "Simplified BSD"

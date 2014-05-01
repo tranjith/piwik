@@ -5,16 +5,14 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Piwik
  */
 namespace Piwik\Period;
+
 use Exception;
 use Piwik\Period;
+use Piwik\Piwik;
 
 /**
- * @package Piwik
- * @subpackage Period
  */
 class Day extends Period
 {
@@ -40,7 +38,7 @@ class Day extends Period
     {
         //"Mon 15 Aug"
         $date = $this->getDateStart();
-        $out = $date->getLocalized(Piwik_Translate('CoreHome_ShortDateFormat'));
+        $out = $date->getLocalized(Piwik::translate('CoreHome_ShortDateFormat'));
         return $out;
     }
 
@@ -53,7 +51,7 @@ class Day extends Period
     {
         //"Mon 15 Aug"
         $date = $this->getDateStart();
-        $template = Piwik_Translate('CoreHome_DateFormat');
+        $template = Piwik::translate('CoreHome_DateFormat');
         $out = $date->getLocalized($template);
         return $out;
     }

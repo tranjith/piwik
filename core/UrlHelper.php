@@ -5,21 +5,25 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Piwik
  */
 namespace Piwik;
 
+/**
+ * Contains less commonly needed URL helper methods.
+ * 
+ */
 class UrlHelper
 {
     /**
-     * Returns a Query string,
-     * Given an array of input parameters, and an array of parameter names to exclude
+     * Converts an array of query parameter name/value mappings into a query string.
+     * Parameters that are in `$parametersToExclude` will not appear in the result.
      *
      * @static
-     * @param $queryParameters
-     * @param $parametersToExclude
-     * @return string
+     * @param $queryParameters Array of query parameters, eg, `array('site' => '0', 'date' => '2012-01-01')`.
+     * @param $parametersToExclude Array of query parameter names that shouldn't be
+     *                             in the result query string, eg, `array('date', 'period')`.
+     * @return string A query string, eg, `"?site=0"`.
+     * @api
      */
     public static function getQueryStringWithExcludedParameters($queryParameters, $parametersToExclude)
     {
@@ -88,7 +92,7 @@ class UrlHelper
     }
 
     /**
-     * Returns true if the string passed may be a URL.
+     * Returns true if the string passed may be a URL ie. it starts with protocol://.
      * We don't need a precise test here because the value comes from the website
      * tracked source code and the URLs may look very strange.
      *
@@ -102,10 +106,14 @@ class UrlHelper
     }
 
     /**
-     * Builds a URL from the result of parse_url function
-     * Copied from the PHP comments at http://php.net/parse_url
-     * @param array $parsed
-     * @return bool|string
+     * Returns a URL created from the result of the [parse_url](http://php.net/manual/en/function.parse-url.php)
+     * function.
+     * 
+     * Copied from the PHP comments at [http://php.net/parse_url](http://php.net/parse_url).
+     * 
+     * @param array $parsed Result of [parse_url](http://php.net/manual/en/function.parse-url.php).
+     * @return false|string The URL or `false` if `$parsed` isn't an array.
+     * @api
      */
     public static function getParseUrlReverse($parsed)
     {
@@ -130,10 +138,11 @@ class UrlHelper
     }
 
     /**
-     * Returns an URL query string in an array format
+     * Returns a URL query string as an array.
      *
-     * @param string $urlQuery
-     * @return array  array( param1=> value1, param2=>value2)
+     * @param string $urlQuery The query string, eg, `'?param1=value1&param2=value2'`.
+     * @return array eg, `array('param1' => 'value1', 'param2' => 'value2')`
+     * @api
      */
     public static function getArrayFromQueryString($urlQuery)
     {
@@ -147,9 +156,9 @@ class UrlHelper
 
         $urlQuery = $separator . $urlQuery;
         //		$urlQuery = str_replace(array('%20'), ' ', $urlQuery);
-        $refererQuery = trim($urlQuery);
+        $referrerQuery = trim($urlQuery);
 
-        $values = explode($separator, $refererQuery);
+        $values = explode($separator, $referrerQuery);
 
         $nameToValue = array();
 
@@ -189,11 +198,12 @@ class UrlHelper
     }
 
     /**
-     * Returns the value of a GET parameter $parameter in an URL query $urlQuery
+     * Returns the value of a single query parameter from the supplied query string.
      *
-     * @param string $urlQuery  result of parse_url()['query'] and htmlentitied (& is &amp;) eg. module=test&amp;action=toto or ?page=test
-     * @param string $parameter
-     * @return string|bool  Parameter value if found (can be the empty string!), null if not found
+     * @param string $urlQuery The query string.
+     * @param string $parameter The query parameter name to return.
+     * @return string|null Parameter value if found (can be the empty string!), null if not found.
+     * @api
      */
     public static function getParameterFromQueryString($urlQuery, $parameter)
     {
@@ -205,11 +215,11 @@ class UrlHelper
     }
 
     /**
-     * Returns the path and query part from a URL.
-     * Eg. http://piwik.org/test/index.php?module=CoreHome will return /test/index.php?module=CoreHome
+     * Returns the path and query string of a URL.
      *
-     * @param string $url  either http://piwik.org/test or /
-     * @return string
+     * @param string $url The URL.
+     * @return string eg, `/test/index.php?module=CoreHome` if `$url` is `http://piwik.org/test/index.php?module=CoreHome`.
+     * @api
      */
     public static function getPathAndQueryFromUrl($url)
     {
@@ -239,7 +249,7 @@ class UrlHelper
      *       as the google keyword parameter couldn't be found.
      *
      * @see unit tests in /tests/core/Common.test.php
-     * @param string $referrerUrl  URL referer URL, eg. $_SERVER['HTTP_REFERER']
+     * @param string $referrerUrl URL referrer URL, eg. $_SERVER['HTTP_REFERER']
      * @return array|bool   false if a keyword couldn't be extracted,
      *                        or array(
      *                            'name' => 'Google',
@@ -247,62 +257,62 @@ class UrlHelper
      */
     public static function extractSearchEngineInformationFromUrl($referrerUrl)
     {
-        $refererParsed = @parse_url($referrerUrl);
-        $refererHost = '';
-        if (isset($refererParsed['host'])) {
-            $refererHost = $refererParsed['host'];
+        $referrerParsed = @parse_url($referrerUrl);
+        $referrerHost = '';
+        if (isset($referrerParsed['host'])) {
+            $referrerHost = $referrerParsed['host'];
         }
-        if (empty($refererHost)) {
+        if (empty($referrerHost)) {
             return false;
         }
         // some search engines (eg. Bing Images) use the same domain
         // as an existing search engine (eg. Bing), we must also use the url path
-        $refererPath = '';
-        if (isset($refererParsed['path'])) {
-            $refererPath = $refererParsed['path'];
+        $referrerPath = '';
+        if (isset($referrerParsed['path'])) {
+            $referrerPath = $referrerParsed['path'];
         }
 
         // no search query
-        if (!isset($refererParsed['query'])) {
-            $refererParsed['query'] = '';
+        if (!isset($referrerParsed['query'])) {
+            $referrerParsed['query'] = '';
         }
-        $query = $refererParsed['query'];
+        $query = $referrerParsed['query'];
 
         // Google Referrers URLs sometimes have the fragment which contains the keyword
-        if (!empty($refererParsed['fragment'])) {
-            $query .= '&' . $refererParsed['fragment'];
+        if (!empty($referrerParsed['fragment'])) {
+            $query .= '&' . $referrerParsed['fragment'];
         }
 
         $searchEngines = Common::getSearchEngineUrls();
 
-        $hostPattern = self::getLossyUrl($refererHost);
-        if (array_key_exists($refererHost . $refererPath, $searchEngines)) {
-            $refererHost = $refererHost . $refererPath;
-        } elseif (array_key_exists($hostPattern . $refererPath, $searchEngines)) {
-            $refererHost = $hostPattern . $refererPath;
+        $hostPattern = self::getLossyUrl($referrerHost);
+        if (array_key_exists($referrerHost . $referrerPath, $searchEngines)) {
+            $referrerHost = $referrerHost . $referrerPath;
+        } elseif (array_key_exists($hostPattern . $referrerPath, $searchEngines)) {
+            $referrerHost = $hostPattern . $referrerPath;
         } elseif (array_key_exists($hostPattern, $searchEngines)) {
-            $refererHost = $hostPattern;
-        } elseif (!array_key_exists($refererHost, $searchEngines)) {
+            $referrerHost = $hostPattern;
+        } elseif (!array_key_exists($referrerHost, $searchEngines)) {
             if (!strncmp($query, 'cx=partner-pub-', 15)) {
                 // Google custom search engine
-                $refererHost = 'google.com/cse';
-            } elseif (!strncmp($refererPath, '/pemonitorhosted/ws/results/', 28)) {
+                $referrerHost = 'google.com/cse';
+            } elseif (!strncmp($referrerPath, '/pemonitorhosted/ws/results/', 28)) {
                 // private-label search powered by InfoSpace Metasearch
-                $refererHost = 'wsdsold.infospace.com';
-            } elseif (strpos($refererHost, '.images.search.yahoo.com') != false) {
+                $referrerHost = 'wsdsold.infospace.com';
+            } elseif (strpos($referrerHost, '.images.search.yahoo.com') != false) {
                 // Yahoo! Images
-                $refererHost = 'images.search.yahoo.com';
-            } elseif (strpos($refererHost, '.search.yahoo.com') != false) {
+                $referrerHost = 'images.search.yahoo.com';
+            } elseif (strpos($referrerHost, '.search.yahoo.com') != false) {
                 // Yahoo!
-                $refererHost = 'search.yahoo.com';
+                $referrerHost = 'search.yahoo.com';
             } else {
                 return false;
             }
         }
-        $searchEngineName = $searchEngines[$refererHost][0];
+        $searchEngineName = $searchEngines[$referrerHost][0];
         $variableNames = null;
-        if (isset($searchEngines[$refererHost][1])) {
-            $variableNames = $searchEngines[$refererHost][1];
+        if (isset($searchEngines[$referrerHost][1])) {
+            $variableNames = $searchEngines[$referrerHost][1];
         }
         if (!$variableNames) {
             $searchEngineNames = Common::getSearchEngineNames();
@@ -385,7 +395,7 @@ class UrlHelper
                                     strpos($query, '&q=') !== false
                                     || strpos($query, '?q=') !== false
                                     // then they started sending the full host only (no path/query string)
-                                    || (empty($query) && (empty($refererPath) || $refererPath == '/') && empty($refererParsed['fragment']))
+                                    || (empty($query) && (empty($referrerPath) || $referrerPath == '/') && empty($referrerParsed['fragment']))
                                 )
                             )
                             // search engines with no keyword
@@ -412,10 +422,10 @@ class UrlHelper
 
         if (!empty($key)) {
             if (function_exists('iconv')
-                && isset($searchEngines[$refererHost][3])
+                && isset($searchEngines[$referrerHost][3])
             ) {
                 // accepts string, array, or comma-separated list string in preferred order
-                $charsets = $searchEngines[$refererHost][3];
+                $charsets = $searchEngines[$referrerHost][3];
                 if (!is_array($charsets)) {
                     $charsets = explode(',', $charsets);
                 }
@@ -445,5 +455,42 @@ class UrlHelper
             'name'     => $searchEngineName,
             'keywords' => $key,
         );
+    }
+
+    /**
+     * Returns the query part from any valid url and adds additional parameters to the query part if needed.
+     *
+     * @param string $url    Any url eg `"http://example.com/piwik/?foo=bar"`
+     * @param array $additionalParamsToAdd    If not empty the given parameters will be added to the query.
+     *
+     * @return string eg. `"foo=bar&foo2=bar2"`
+     * @api
+     */
+    public static function getQueryFromUrl($url, array $additionalParamsToAdd = array())
+    {
+        $url = @parse_url($url);
+        $query = '';
+
+        if (!empty($url['query'])) {
+            $query .= $url['query'];
+        }
+
+        if (!empty($additionalParamsToAdd)) {
+            if (!empty($query)) {
+                $query .= '&';
+            }
+
+            $query .= Url::getQueryStringFromParameters($additionalParamsToAdd);
+        }
+
+        return $query;
+    }
+
+    public static function getHostFromUrl($url)
+    {
+        if (!UrlHelper::isLookLikeUrl($url)) {
+            $url = "http://" . $url;
+        }
+        return parse_url($url, PHP_URL_HOST);
     }
 }

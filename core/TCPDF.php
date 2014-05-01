@@ -5,8 +5,6 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Piwik
  */
 
 namespace Piwik;
@@ -21,7 +19,6 @@ require_once PIWIK_INCLUDE_PATH . '/libs/tcpdf/tcpdf.php';
 /**
  * TCPDF class wrapper.
  *
- * @package Piwik
  */
 class TCPDF extends \TCPDF
 {
@@ -39,7 +36,7 @@ class TCPDF extends \TCPDF
         if ($this->currentPageNo > 1) {
             $this->SetY(-15);
             $this->SetFont($this->footer_font[0], $this->footer_font[1], $this->footer_font[2]);
-            $this->Cell(0, 10, $this->footerContent . Piwik_Translate('ScheduledReports_Pagination', array($this->getAliasNumPage(), $this->getAliasNbPages())), 0, false, 'C', 0, '', 0, false, 'T', 'M');
+            $this->Cell(0, 10, $this->footerContent . Piwik::translate('ScheduledReports_Pagination', array($this->getAliasNumPage(), $this->getAliasNbPages())), 0, false, 'C', 0, '', 0, false, 'T', 'M');
         }
     }
 

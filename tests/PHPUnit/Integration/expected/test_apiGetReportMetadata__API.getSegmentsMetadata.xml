@@ -40,8 +40,23 @@
 	<row>
 		<type>metric</type>
 		<category>Visit</category>
+		<name>Total events</name>
+		<segment>events</segment>
+		<acceptedValues>To select all visits who triggered an Event, use: &amp;segment=events&gt;0</acceptedValues>
+	</row>
+	<row>
+		<type>metric</type>
+		<category>Visit</category>
 		<name>Visit Duration (in seconds)</name>
 		<segment>visitDuration</segment>
+	</row>
+	<row>
+		<type>metric</type>
+		<category>Visit</category>
+		<name>Visitor IP</name>
+		<segment>visitIp</segment>
+		<acceptedValues>13.54.122.1. &lt;/code&gt;Select IP ranges with notation: &lt;code&gt;visitIp&gt;13.54.122.0;visitIp&lt;13.54.122.255</acceptedValues>
+		<permission>1</permission>
 	</row>
 	<row>
 		<type>dimension</type>
@@ -111,7 +126,7 @@
 		<category>Visit</category>
 		<name>Device type</name>
 		<segment>deviceType</segment>
-		<acceptedValues>desktop, smartphone, tablet, feature phone, console, tv, car browser</acceptedValues>
+		<acceptedValues>desktop, smartphone, tablet, feature phone, console, tv, car browser, smart display, camera</acceptedValues>
 	</row>
 	<row>
 		<type>dimension</type>
@@ -153,7 +168,7 @@
 		<category>Visit</category>
 		<name>Visit ID</name>
 		<segment>visitId</segment>
-		<acceptedValues>Any integer.</acceptedValues>
+		<acceptedValues>Any integer. </acceptedValues>
 		<permission>1</permission>
 	</row>
 	<row>
@@ -176,14 +191,6 @@
 		<name>Visitor ID</name>
 		<segment>visitorId</segment>
 		<acceptedValues>34c31e04394bdc63 - any 16 Hexadecimal chars ID, which can be fetched using the Tracking API function getVisitorId()</acceptedValues>
-		<permission>1</permission>
-	</row>
-	<row>
-		<type>dimension</type>
-		<category>Visit</category>
-		<name>Visitor IP</name>
-		<segment>visitIp</segment>
-		<acceptedValues>13.54.122.1, etc.</acceptedValues>
 		<permission>1</permission>
 	</row>
 	<row>
@@ -220,6 +227,24 @@
 		<name>Referrer URL</name>
 		<acceptedValues>http%3A%2F%2Fwww.example.org%2Freferer-page.htm</acceptedValues>
 		<segment>referrerUrl</segment>
+	</row>
+	<row>
+		<type>dimension</type>
+		<category>Events</category>
+		<name>Event Action</name>
+		<segment>eventAction</segment>
+	</row>
+	<row>
+		<type>dimension</type>
+		<category>Events</category>
+		<name>Event Category</name>
+		<segment>eventCategory</segment>
+	</row>
+	<row>
+		<type>dimension</type>
+		<category>Events</category>
+		<name>Event Name</name>
+		<segment>eventName</segment>
 	</row>
 	<row>
 		<type>dimension</type>

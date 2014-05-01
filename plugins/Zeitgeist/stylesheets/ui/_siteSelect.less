@@ -8,6 +8,9 @@
   height: 30px; /* Hack to not push the dashboard widget below */
 }
 
+.sites_selector_in_dashboard {
+  margin-top:10px;
+}
 .top_bar_sites_selector {
   float: right
 }
@@ -33,12 +36,13 @@
   float: left;
   position: relative;
   z-index: 19;
-  padding: 6px 6px 5px 6px;
   background: #fff url(plugins/Zeitgeist/images/sites_selection.png) repeat-x 0 0;
   border: 1px solid #d4d4d4;
   color: #255792;
   border-radius: 4px;
   cursor: pointer;
+  min-width: 165px;
+  padding: 5px 6px 4px;
 }
 
 .sites_autocomplete .custom_select_main_link {
@@ -46,12 +50,13 @@
   text-decoration: none;
   background: none;
   cursor: default;
+  height:1.4em;
 }
 
 .sites_autocomplete .custom_select_ul_list li a,
 .sites_autocomplete .custom_select_all a,
 .sites_autocomplete .custom_select_main_link > span {
-  display: block;
+  display: inline-block;
   max-width: 140px;
   white-space: nowrap;
   overflow: hidden;
@@ -59,7 +64,7 @@
   padding: 0 20px 0 4px;
 }
 
-.sites_autocomplete--dropdown .custom_select_main_link:before {
+.sites_autocomplete--dropdown .custom_select_main_link:not(.loading):before {
   content: " \25BC";
   position: absolute;
   right: 0;
@@ -73,7 +78,7 @@
   position: relative;
 }
 
-.sites_autocomplete .custom_select_loading {
+.sites_autocomplete .custom_select_main_link.loading {
   background: url(plugins/Zeitgeist/images/loading-blue.gif) no-repeat right 3px;
 }
 
@@ -121,6 +126,9 @@
   color: #454545;
 
 }
+.sites_autocomplete {
+  width: 165px;
+}
 
 .sites_autocomplete .custom_select_search .but {
   vertical-align: top;
@@ -138,14 +146,24 @@
   padding-left: 12px;
 }
 
+.custom_selector_container .ui-menu-item,
+.custom_selector_container .ui-menu-item a {
+  float:none;position:static
+}
+
+.custom_select_search .reset {
+  position: relative; top: 4px; left: -44px; cursor: pointer;
+}
+
 .custom_select_block {
-  height: 0;
   overflow: hidden;
+  max-width: inherit
 }
 
 .custom_select_block_show {
   height: auto;
   overflow: visible;
+  max-width:inherit;
 }
 
 .sites_selector_container {

@@ -126,6 +126,7 @@ class UserAgentParser
 
         // IE (including shells: Acoo, AOL, Avant, Crazy Browser, Green Browser, KKMAN, Maxathon)
         'msie'                        => 'IE',
+        'trident'                     => 'IE',
         'microsoft internet explorer' => 'IE',
         'internet explorer'           => 'IE',
 
@@ -230,6 +231,7 @@ class UserAgentParser
 
         'CYGWIN_NT-6.2'                => 'WI8',
         'Windows NT 6.2'               => 'WI8',
+        'Windows NT 6.3'               => 'WI8',
         'Windows 8'                    => 'WI8',
         'CYGWIN_NT-6.1'                => 'WI7',
         'Windows NT 6.1'               => 'WI7',
@@ -514,7 +516,7 @@ class UserAgentParser
 
             // IE compatibility mode
             if ($info['id'] == 'IE'
-                && strncmp($userAgent, 'Mozilla/4.0', 11) == 0
+                && (strncmp($userAgent, 'Mozilla/4.0', 11) == 0 || strncmp($userAgent, 'Mozilla/5.0', 11) == 0)
                 && preg_match('~ Trident/([0-9]+)\.[0-9]+~', $userAgent, $tridentVersion)
             ) {
                 $info['major_number'] = $tridentVersion[1] + 4;
@@ -653,9 +655,9 @@ class UserAgentParser
         if (isset(self::$browserIdToName[$browserId])) {
             return self::$browserIdToName[$browserId];
         }
-        if(class_exists('UserAgentParserEnhanced')) {
-            if( !empty(UserAgentParserEnhanced::$browsers[$browserId])) {
-                return UserAgentParserEnhanced::$browsers[$browserId];
+        if(class_exists('DeviceDetector')) {
+            if( !empty(DeviceDetector::$browsers[$browserId])) {
+                return DeviceDetector::$browsers[$browserId];
             }
         }
         return false;
@@ -690,8 +692,8 @@ class UserAgentParser
             return self::$operatingSystemsIdToName[$osId];
         }
 
-        if(class_exists('UserAgentParserEnhanced')) {
-            return UserAgentParserEnhanced::getOsNameFromId($osId);
+        if(class_exists('DeviceDetector')) {
+            return DeviceDetector::getOsNameFromId($osId);
         }
         return false;
     }

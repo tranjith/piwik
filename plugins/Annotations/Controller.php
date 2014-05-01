@@ -5,23 +5,19 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik_Plugins
- * @package Annotations
  */
 namespace Piwik\Plugins\Annotations;
 
 use Piwik\API\Request;
 use Piwik\Common;
-use Piwik\Plugins\Annotations\AnnotationList;
-use Piwik\Plugins\Annotations\API;
+use Piwik\Piwik;
 use Piwik\View;
 
 /**
  * Controller for the Annotations plugin.
  *
- * @package Annotations
  */
-class Controller extends \Piwik\Controller
+class Controller extends \Piwik\Plugin\Controller
 {
     /**
      * Controller action that returns HTML displaying annotations for a site and
@@ -75,17 +71,13 @@ class Controller extends \Piwik\Controller
         $view->startDate = $startDate->toString();
         $view->endDate = $endDate->toString();
 
-        $dateFormat = Piwik_Translate('CoreHome_ShortDateFormatWithYear');
+        $dateFormat = Piwik::translate('CoreHome_ShortDateFormatWithYear');
         $view->startDatePretty = $startDate->getLocalized($dateFormat);
         $view->endDatePretty = $endDate->getLocalized($dateFormat);
 
         $view->canUserAddNotes = AnnotationList::canUserAddNotesFor($idSite);
 
-        if ($fetch) {
-            return $view->render();
-        } else {
-            echo $view->render();
-        }
+        return $view->render();
     }
 
     /**
@@ -116,7 +108,7 @@ class Controller extends \Piwik\Controller
             // save the annotation
             $view->annotation = Request::processRequest("Annotations.save");
 
-            echo $view->render();
+            return $view->render();
         }
     }
 
@@ -157,7 +149,7 @@ class Controller extends \Piwik\Controller
 
             $managerDate = Common::getRequestVar('managerDate', false);
             $managerPeriod = Common::getRequestVar('managerPeriod', false);
-            echo $this->getAnnotationManager($fetch = true, $managerDate, $managerPeriod);
+            return $this->getAnnotationManager($fetch = true, $managerDate, $managerPeriod);
         }
     }
 
@@ -186,7 +178,7 @@ class Controller extends \Piwik\Controller
             // delete annotation. NOTE: permissions checked in API method
             Request::processRequest("Annotations.delete");
 
-            echo $this->getAnnotationManager($fetch = true);
+            return $this->getAnnotationManager($fetch = true);
         }
     }
 
@@ -218,6 +210,6 @@ class Controller extends \Piwik\Controller
         $view = new View('@Annotations/getEvolutionIcons');
         $view->annotationCounts = reset($annotationCounts); // only one idSite allowed for this action
 
-        echo $view->render();
+        return $view->render();
     }
 }

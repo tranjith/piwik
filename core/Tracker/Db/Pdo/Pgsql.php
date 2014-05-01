@@ -5,21 +5,16 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Piwik
  */
 
 namespace Piwik\Tracker\Db\Pdo;
 
 use Exception;
 use PDO;
-use Piwik\Tracker\Db\Pdo\Mysql;
 
 /**
  * PDO PostgreSQL wrapper
  *
- * @package Piwik
- * @subpackage Tracker
  */
 class Pgsql extends Mysql
 {
@@ -111,7 +106,7 @@ class Pgsql extends Mysql
     /**
      * Return number of affected rows in last query
      *
-     * @param mixed $queryResult  Result from query()
+     * @param mixed $queryResult Result from query()
      * @return int
      */
     public function rowCount($queryResult)

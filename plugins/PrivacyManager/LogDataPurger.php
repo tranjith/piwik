@@ -5,14 +5,13 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik_Plugins
- * @package PrivacyManager
  */
 namespace Piwik\Plugins\PrivacyManager;
 
 use Piwik\Common;
 use Piwik\Date;
 use Piwik\Db;
+use Piwik\Log;
 use Piwik\Piwik;
 
 /**
@@ -76,7 +75,7 @@ class LogDataPurger
         foreach ($logTables as $logTable) {
             // deleting from log_action must be handled differently, so we do it later
             if ($logTable != Common::prefixTable('log_action')) {
-                Db::deleteAllRows($logTable, $where, $this->maxRowsToDeletePerQuery, array($maxIdVisit));
+                Db::deleteAllRows($logTable, $where, "idvisit ASC", $this->maxRowsToDeletePerQuery, array($maxIdVisit));
             }
         }
 
@@ -85,7 +84,7 @@ class LogDataPurger
             $this->purgeUnusedLogActions();
         } else {
             $logMessage = get_class($this) . ": LOCK TABLES privilege not granted; skipping unused actions purge";
-            Piwik::log($logMessage);
+            Log::warning($logMessage);
         }
 
         // optimize table overhead after deletion
@@ -226,9 +225,15 @@ class LogDataPurger
 
         // allow code to be executed after data is inserted. for concurrency testing purposes.
         if ($olderThan) {
-            Piwik_PostEvent("LogDataPurger.actionsToKeepInserted.olderThan");
+            /**
+             * @ignore
+             */
+            Piwik::postEvent("LogDataPurger.ActionsToKeepInserted.olderThan");
         } else {
-            Piwik_PostEvent("LogDataPurger.actionsToKeepInserted.newerThan");
+            /**
+             * @ignore
+             */
+            Piwik::postEvent("LogDataPurger.ActionsToKeepInserted.newerThan");
         }
     }
 
@@ -261,7 +266,10 @@ class LogDataPurger
             'log_link_visit_action' => array('idaction_url',
                                              'idaction_url_ref',
                                              'idaction_name',
-                                             'idaction_name_ref'),
+                                             'idaction_name_ref',
+                                             'idaction_event_category',
+                                             'idaction_event_action'
+            ),
 
             'log_conversion'        => array('idaction_url'),
 
@@ -324,4 +332,3 @@ class LogDataPurger
         );
     }
 }
-

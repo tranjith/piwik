@@ -5,8 +5,6 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Piwik
  */
 namespace Piwik\Db;
 
@@ -14,9 +12,11 @@ use Exception;
 use Piwik\AssetManager;
 use Piwik\Common;
 use Piwik\Config;
+
 use Piwik\Db;
 use Piwik\DbHelper;
-use Piwik\Piwik;
+use Piwik\Log;
+use Piwik\SettingsPiwik;
 use Piwik\SettingsServer;
 
 class BatchInsert
@@ -26,10 +26,10 @@ class BatchInsert
      *
      * NOTE: you should use tableInsertBatch() which will fallback to this function if LOAD DATA INFILE not available
      *
-     * @param string $tableName            PREFIXED table name! you must call Common::prefixTable() before passing the table name
-     * @param array $fields               array of unquoted field names
-     * @param array $values               array of data to be inserted
-     * @param bool $ignoreWhenDuplicate  Ignore new rows that contain unique key values that duplicate old rows
+     * @param string $tableName PREFIXED table name! you must call Common::prefixTable() before passing the table name
+     * @param array $fields array of unquoted field names
+     * @param array $values array of data to be inserted
+     * @param bool $ignoreWhenDuplicate Ignore new rows that contain unique key values that duplicate old rows
      */
     public static function tableInsertBatchIterate($tableName, $fields, $values, $ignoreWhenDuplicate = true)
     {
@@ -49,9 +49,9 @@ class BatchInsert
      * Performs a batch insert into a specific table using either LOAD DATA INFILE or plain INSERTs,
      * as a fallback. On MySQL, LOAD DATA INFILE is 20x faster than a series of plain INSERTs.
      *
-     * @param string $tableName  PREFIXED table name! you must call Common::prefixTable() before passing the table name
-     * @param array $fields     array of unquoted field names
-     * @param array $values     array of data to be inserted
+     * @param string $tableName PREFIXED table name! you must call Common::prefixTable() before passing the table name
+     * @param array $fields array of unquoted field names
+     * @param array $values array of data to be inserted
      * @param bool $throwException Whether to throw an exception that was caught while trying
      *                                LOAD DATA INFILE, or not.
      * @throws Exception
@@ -59,17 +59,21 @@ class BatchInsert
      */
     public static function tableInsertBatch($tableName, $fields, $values, $throwException = false)
     {
-        $filePath = PIWIK_USER_PATH . '/' . AssetManager::MERGED_FILE_DIR . $tableName . '-' . Common::generateUniqId() . '.csv';
+        $filePath = PIWIK_USER_PATH . '/tmp/assets/' . $tableName . '-' . Common::generateUniqId() . '.csv';
+        $filePath = SettingsPiwik::rewriteTmpPathWithHostname($filePath);
 
-        if (Db::get()->hasBulkLoader()) {
+        $loadDataInfileEnabled = Config::getInstance()->General['enable_load_data_infile'];
+
+        if ($loadDataInfileEnabled
+            && Db::get()->hasBulkLoader()) {
             try {
                 $fileSpec = array(
                     'delim'            => "\t",
                     'quote'            => '"', // chr(34)
                     'escape'           => '\\\\', // chr(92)
                     'escapespecial_cb' => function ($str) {
-                        return str_replace(array(chr(92), chr(34)), array(chr(92) . chr(92), chr(92) . chr(34)), $str);
-                    },
+                            return str_replace(array(chr(92), chr(34)), array(chr(92) . chr(92), chr(92) . chr(34)), $str);
+                        },
                     'eol'              => "\r\n",
                     'null'             => 'NULL',
                 );
@@ -91,7 +95,7 @@ class BatchInsert
                     return true;
                 }
             } catch (Exception $e) {
-                Piwik::log(sprintf("LOAD DATA INFILE failed or not supported, falling back to normal INSERTs... Error was: %s", $e->getMessage()));
+                Log::info("LOAD DATA INFILE failed or not supported, falling back to normal INSERTs... Error was: %s", $e->getMessage());
 
                 if ($throwException) {
                     throw $e;
@@ -108,16 +112,22 @@ class BatchInsert
     /**
      * Batch insert into table from CSV (or other delimited) file.
      *
-     * @param string $tableName  Name of table
-     * @param array $fields     Field names
-     * @param string $filePath   Path name of a file.
-     * @param array $fileSpec   File specifications (delimiter, line terminator, etc)
+     * @param string $tableName Name of table
+     * @param array $fields Field names
+     * @param string $filePath Path name of a file.
+     * @param array $fileSpec File specifications (delimiter, line terminator, etc)
      *
      * @throws Exception
      * @return bool  True if successful; false otherwise
      */
     public static function createTableFromCSVFile($tableName, $fields, $filePath, $fileSpec)
     {
+        // Chroot environment: prefix the path with the absolute chroot path
+        $chrootPath = Config::getInstance()->General['absolute_chroot_path'];
+        if(!empty($chrootPath)) {
+            $filePath = $chrootPath . $filePath;
+        }
+
         // On Windows, MySQL expects forward slashes as directory separators
         if (SettingsServer::isWindows()) {
             $filePath = str_replace('\\', '/', $filePath);
@@ -171,9 +181,9 @@ class BatchInsert
 
         $exceptions = array();
         foreach ($keywords as $keyword) {
+            $queryStart = 'LOAD DATA ' . $keyword . 'INFILE ';
+            $sql = $queryStart . $query;
             try {
-                $queryStart = 'LOAD DATA ' . $keyword . 'INFILE ';
-                $sql = $queryStart . $query;
                 $result = @Db::exec($sql);
                 if (empty($result) || $result < 0) {
                     continue;
@@ -185,7 +195,7 @@ class BatchInsert
                 $code = $e->getCode();
                 $message = $e->getMessage() . ($code ? "[$code]" : '');
                 if (!Db::get()->isErrNo($e, '1148')) {
-                    Piwik::log(sprintf("LOAD DATA INFILE failed... Error was: %s", $message));
+                    Log::info("LOAD DATA INFILE failed... Error was: %s", $message);
                 }
                 $exceptions[] = "\n  Try #" . (count($exceptions) + 1) . ': ' . $queryStart . ": " . $message;
             }
@@ -200,9 +210,9 @@ class BatchInsert
     /**
      * Create CSV (or other delimited) files
      *
-     * @param string $filePath  filename to create
-     * @param array $fileSpec  File specifications (delimiter, line terminator, etc)
-     * @param array $rows      Array of array corresponding to rows of values
+     * @param string $filePath filename to create
+     * @param array $fileSpec File specifications (delimiter, line terminator, etc)
+     * @param array $rows Array of array corresponding to rows of values
      * @throws Exception  if unable to create or write to file
      */
     static protected function createCSVFile($filePath, $fileSpec, $rows)

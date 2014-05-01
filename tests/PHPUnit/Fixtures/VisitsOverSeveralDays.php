@@ -11,7 +11,7 @@ use Piwik\Date;
  * Adds one website and tracks several visits from one visitor on
  * different days that span about a month apart.
  */
-class Test_Piwik_Fixture_VisitsOverSeveralDays extends Test_Piwik_BaseFixture
+class Test_Piwik_Fixture_VisitsOverSeveralDays extends Fixture
 {
     public $dateTimes = array(
         '2010-12-14 01:00:00',
@@ -52,8 +52,13 @@ class Test_Piwik_Fixture_VisitsOverSeveralDays extends Test_Piwik_BaseFixture
 
     private function setUpWebsitesAndGoals()
     {
-        self::createWebsite($this->dateTimes[0], $ecommerce = 0, $siteName = 'Site AAAAAA');
-        self::createWebsite($this->dateTimes[0], $ecommerce = 0, $siteName = 'SITE BBbbBB');
+        if (!self::siteCreated($idSite = 1)) {
+            self::createWebsite($this->dateTimes[0], $ecommerce = 0, $siteName = 'Site AAAAAA');
+        }
+
+        if (!self::siteCreated($idSite = 2)) {
+            self::createWebsite($this->dateTimes[0], $ecommerce = 0, $siteName = 'SITE BBbbBB');
+        }
     }
 
     private function trackVisits()
@@ -80,7 +85,8 @@ class Test_Piwik_Fixture_VisitsOverSeveralDays extends Test_Piwik_BaseFixture
             $visitor->setIp('200.1.15.22');
 
             $visitor->setForceVisitDateTime(Date::factory($dateTime)->addHour(0.2)->getDatetime());
-            $visitor->setUrl('http://example.org/news');
+            $urlWithThreeSubdirectories = 'http://example.org/sub1/sub2/sub3/news';
+            $visitor->setUrl($urlWithThreeSubdirectories);
             self::checkResponse($visitor->doTrackPageView('ou pas'));
 
             // SECOND VISIT THIS DAY

@@ -11,7 +11,7 @@ use Piwik\Plugins\Goals\API;
 /**
  * Adds one site with two goals and tracks two visits with custom variables.
  */
-class Test_Piwik_Fixture_TwoVisitsWithCustomVariables extends Test_Piwik_BaseFixture
+class Test_Piwik_Fixture_TwoVisitsWithCustomVariables extends Fixture
 {
     public $dateTime = '2010-01-03 11:22:33';
     public $idSite = 1;
@@ -39,9 +39,17 @@ class Test_Piwik_Fixture_TwoVisitsWithCustomVariables extends Test_Piwik_BaseFix
     private function setUpWebsitesAndGoals()
     {
         // tests run in UTC, the Tracker in UTC
-        self::createWebsite($this->dateTime);
-        API::getInstance()->addGoal($this->idSite, 'triggered js', 'manually', '', '');
-        API::getInstance()->addGoal($this->idSite, 'second goal', 'manually', '', '');
+        if (!self::siteCreated($idSite = 1)) {
+            self::createWebsite($this->dateTime);
+        }
+
+        if (!self::goalExists($idSite = 1, $idGoal = 1)) {
+            API::getInstance()->addGoal($this->idSite, 'triggered js', 'manually', '', '');
+        }
+
+        if (!self::goalExists($idSite = 1, $idGoal = 2)) {
+            API::getInstance()->addGoal($this->idSite, 'second goal', 'manually', '', '');
+        }
     }
 
     private function trackVisits()
@@ -52,7 +60,7 @@ class Test_Piwik_Fixture_TwoVisitsWithCustomVariables extends Test_Piwik_BaseFix
         $idGoal2 = $this->idGoal2;
 
         $visitorA = self::getTracker($this->idSite, $this->dateTime, $defaultInit = true);
-        // Used to test actual referer + keyword position in Live!
+        // Used to test actual referrer + keyword position in Live!
         $visitorA->setUrlReferrer(urldecode('http://www.google.com/url?sa=t&source=web&cd=1&ved=0CB4QFjAA&url=http%3A%2F%2Fpiwik.org%2F&rct=j&q=this%20keyword%20should%20be%20ranked&ei=V8WfTePkKKLfiALrpZWGAw&usg=AFQjCNF_MGJRqKPvaKuUokHtZ3VvNG9ALw&sig2=BvKAdCtNixsmfNWXjsNyMw'));
 
         // no campaign, but a search engine to attribute the goal conversion to

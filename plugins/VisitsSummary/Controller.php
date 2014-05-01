@@ -5,34 +5,30 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik_Plugins
- * @package VisitsSummary
  */
 namespace Piwik\Plugins\VisitsSummary;
 
 use Piwik\API\Request;
-use Piwik\DataTable\Row;
-use Piwik\Piwik;
 use Piwik\Common;
+use Piwik\DataTable\Row;
 use Piwik\DataTable;
-use Piwik\Plugins\Actions\API;
-use Piwik\ViewDataTable;
-use Piwik\View;
+use Piwik\Piwik;
+use Piwik\Plugins\Actions\API as APIActions;
 use Piwik\Site;
+use Piwik\View;
 
 /**
  *
- * @package VisitsSummary
  */
-class Controller extends \Piwik\Controller
+class Controller extends \Piwik\Plugin\Controller
 {
     public function index()
     {
         $view = new View('@VisitsSummary/index');
         $this->setPeriodVariablesView($view);
-        $view->graphEvolutionVisitsSummary = $this->getEvolutionGraph(true, array('nb_visits'));
+        $view->graphEvolutionVisitsSummary = $this->getEvolutionGraph(array('nb_visits'));
         $this->setSparklinesAndNumbers($view);
-        echo $view->render();
+        return $view->render();
     }
 
     public function getSparklines()
@@ -40,30 +36,30 @@ class Controller extends \Piwik\Controller
         $view = new View('@VisitsSummary/getSparklines');
         $this->setPeriodVariablesView($view);
         $this->setSparklinesAndNumbers($view);
-        echo $view->render();
+        return $view->render();
     }
 
-    public function getEvolutionGraph($fetch = false, array $columns = array())
+    public function getEvolutionGraph(array $columns = array())
     {
         if (empty($columns)) {
             $columns = Common::getRequestVar('columns');
             $columns = Piwik::getArrayFromApiParameter($columns);
         }
 
-        $documentation = Piwik_Translate('VisitsSummary_VisitsSummaryDocumentation') . '<br />'
-            . Piwik_Translate('General_BrokenDownReportDocumentation') . '<br /><br />'
+        $documentation = Piwik::translate('VisitsSummary_VisitsSummaryDocumentation') . '<br />'
+            . Piwik::translate('General_BrokenDownReportDocumentation') . '<br /><br />'
 
-            . '<b>' . Piwik_Translate('General_ColumnNbVisits') . ':</b> '
-            . Piwik_Translate('General_ColumnNbVisitsDocumentation') . '<br />'
+            . '<b>' . Piwik::translate('General_ColumnNbVisits') . ':</b> '
+            . Piwik::translate('General_ColumnNbVisitsDocumentation') . '<br />'
 
-            . '<b>' . Piwik_Translate('General_ColumnNbUniqVisitors') . ':</b> '
-            . Piwik_Translate('General_ColumnNbUniqVisitorsDocumentation') . '<br />'
+            . '<b>' . Piwik::translate('General_ColumnNbUniqVisitors') . ':</b> '
+            . Piwik::translate('General_ColumnNbUniqVisitorsDocumentation') . '<br />'
 
-            . '<b>' . Piwik_Translate('General_ColumnNbActions') . ':</b> '
-            . Piwik_Translate('General_ColumnNbActionsDocumentation') . '<br />'
+            . '<b>' . Piwik::translate('General_ColumnNbActions') . ':</b> '
+            . Piwik::translate('General_ColumnNbActionsDocumentation') . '<br />'
 
-            . '<b>' . Piwik_Translate('General_ColumnActionsPerVisit') . ':</b> '
-            . Piwik_Translate('General_ColumnActionsPerVisitDocumentation');
+            . '<b>' . Piwik::translate('General_ColumnActionsPerVisit') . ':</b> '
+            . Piwik::translate('General_ColumnActionsPerVisitDocumentation');
 
         $selectableColumns = array(
             // columns from VisitsSummary.get
@@ -91,10 +87,11 @@ class Controller extends \Piwik\Controller
             $selectableColumns[] = 'nb_searches';
             $selectableColumns[] = 'nb_keywords';
         }
+
         $view = $this->getLastUnitGraphAcrossPlugins($this->pluginName, __FUNCTION__, $columns,
             $selectableColumns, $documentation);
 
-        return $this->renderView($view, $fetch);
+        return $this->renderView($view);
     }
 
     static public function getVisitsSummary()
@@ -140,43 +137,51 @@ class Controller extends \Piwik\Controller
         $dataTableVisit = self::getVisitsSummary();
         $dataRow = $dataTableVisit->getRowsCount() == 0 ? new Row() : $dataTableVisit->getFirstRow();
 
-        $dataTableActions = API::getInstance()->get($idSite, Common::getRequestVar('period'), Common::getRequestVar('date'),
-            \Piwik\API\Request::getRawSegmentFromRequest());
-        $dataActionsRow =
-            $dataTableActions->getRowsCount() == 0 ? new Row() : $dataTableActions->getFirstRow();
 
         $view->nbUniqVisitors = (int)$dataRow->getColumn('nb_uniq_visitors');
         $nbVisits = (int)$dataRow->getColumn('nb_visits');
         $view->nbVisits = $nbVisits;
-        $view->nbPageviews = (int)$dataActionsRow->getColumn('nb_pageviews');
-        $view->nbUniquePageviews = (int)$dataActionsRow->getColumn('nb_uniq_pageviews');
-        $view->nbDownloads = (int)$dataActionsRow->getColumn('nb_downloads');
-        $view->nbUniqueDownloads = (int)$dataActionsRow->getColumn('nb_uniq_downloads');
-        $view->nbOutlinks = (int)$dataActionsRow->getColumn('nb_outlinks');
-        $view->nbUniqueOutlinks = (int)$dataActionsRow->getColumn('nb_uniq_outlinks');
+
         $view->averageVisitDuration = $dataRow->getColumn('avg_time_on_site');
         $nbBouncedVisits = $dataRow->getColumn('bounce_count');
         $view->bounceRate = Piwik::getPercentageSafe($nbBouncedVisits, $nbVisits);
         $view->maxActions = (int)$dataRow->getColumn('max_actions');
         $view->nbActionsPerVisit = $dataRow->getColumn('nb_actions_per_visit');
-        $view->averageGenerationTime = $dataActionsRow->getColumn('avg_time_generation');
 
-        if ($displaySiteSearch) {
-            $view->nbSearches = (int)$dataActionsRow->getColumn('nb_searches');
-            $view->nbKeywords = (int)$dataActionsRow->getColumn('nb_keywords');
+        if(Common::isActionsPluginEnabled()) {
+            $view->showActionsPluginReports = true;
+            $dataTableActions = APIActions::getInstance()->get($idSite, Common::getRequestVar('period'), Common::getRequestVar('date'),
+                \Piwik\API\Request::getRawSegmentFromRequest());
+            $dataActionsRow =
+                $dataTableActions->getRowsCount() == 0 ? new Row() : $dataTableActions->getFirstRow();
+
+            $view->nbPageviews = (int)$dataActionsRow->getColumn('nb_pageviews');
+            $view->nbUniquePageviews = (int)$dataActionsRow->getColumn('nb_uniq_pageviews');
+            $view->nbDownloads = (int)$dataActionsRow->getColumn('nb_downloads');
+            $view->nbUniqueDownloads = (int)$dataActionsRow->getColumn('nb_uniq_downloads');
+            $view->nbOutlinks = (int)$dataActionsRow->getColumn('nb_outlinks');
+            $view->nbUniqueOutlinks = (int)$dataActionsRow->getColumn('nb_uniq_outlinks');
+            $view->averageGenerationTime = $dataActionsRow->getColumn('avg_time_generation');
+
+
+            if ($displaySiteSearch) {
+                $view->nbSearches = (int)$dataActionsRow->getColumn('nb_searches');
+                $view->nbKeywords = (int)$dataActionsRow->getColumn('nb_keywords');
+            }
+
+            // backward compatibility:
+            // show actions if the finer metrics are not archived
+            $view->showOnlyActions = false;
+            if ($dataActionsRow->getColumn('nb_pageviews')
+                + $dataActionsRow->getColumn('nb_downloads')
+                + $dataActionsRow->getColumn('nb_outlinks') == 0
+                && $dataRow->getColumn('nb_actions') > 0
+            ) {
+                $view->showOnlyActions = true;
+                $view->nbActions = $dataRow->getColumn('nb_actions');
+                $view->urlSparklineNbActions = $this->getUrlSparkline('getEvolutionGraph', array('columns' => array('nb_actions')));
+            }
         }
 
-        // backward compatibility:
-        // show actions if the finer metrics are not archived
-        $view->showOnlyActions = false;
-        if ($dataActionsRow->getColumn('nb_pageviews')
-            + $dataActionsRow->getColumn('nb_downloads')
-            + $dataActionsRow->getColumn('nb_outlinks') == 0
-            && $dataRow->getColumn('nb_actions') > 0
-        ) {
-            $view->showOnlyActions = true;
-            $view->nbActions = $dataRow->getColumn('nb_actions');
-            $view->urlSparklineNbActions = $this->getUrlSparkline('getEvolutionGraph', array('columns' => array('nb_actions')));
-        }
     }
 }

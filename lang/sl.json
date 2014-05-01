@@ -11,6 +11,7 @@
         "ColumnNoResultKeyword": "Ključna beseda brez zadetka",
         "ColumnPageName": "Ime spletne strani",
         "ColumnPageURL": "URL spletne strani",
+        "ColumnSearchCategory": "Kategorija iskanja",
         "ColumnSearches": "Iskanja",
         "ColumnSearchExits": "Izhodov pri iskanju",
         "ColumnSearchResultsCount": "Število zadetkov pri iskanju",
@@ -26,6 +27,7 @@
         "ExitPagesReportDocumentation": "To poročilo vsebuje informacije o izhodnih straneh, ki so bile obiskane v izbranem časovnem obdobju. izhodna stran je zadnja stran, ki si jo je obiskovalec ogledal med svojim obiskom. %s Izhodni URL naslovi so prikazani kot struktura mape.",
         "ExitPageTitles": "Nazivi izhodnih strani",
         "ExitPageTitlesReportDocumentation": "To poročilo vsebuje informacije o nazivih izhodnih strani, ki so bile obiskane v izbranem časovnam obdobju.",
+        "OneSearch": "Eno iskanje",
         "OutlinkDocumentation": "Zunanja povezava je povezava, ki vodi obiskovalca stran od vaše splete strani (na drugo domeno).",
         "OutlinksReportDocumentation": "To poročilo prikazuje hierarhični seznam URL-jev zunanjih povezav na katere so uporabniki kliknili.",
         "PagesReportDocumentation": "To poročilo vsebuje informacije o URL-jih strani, ki so bile obiskane. %s Tabela je hierarhično organizirana. URL-ji so prikazani kot struktura mape.",
@@ -41,7 +43,9 @@
         "WidgetExitPageTitles": "Naslovi izhodnih strani",
         "WidgetPagesEntry": "Vstopne strani",
         "WidgetPagesExit": "Izhodne strani",
-        "WidgetPageTitles": "Naslovi strani"
+        "WidgetPageTitles": "Naslovi strani",
+        "WidgetSearchCategories": "Kategorije za iskanje",
+        "WidgetSearchKeywords": "Ključne besede"
     },
     "Annotations": {
         "Annotations": "Beležke",
@@ -50,9 +54,6 @@
         "IconDesc": "Preglej opombe za ta časovni razpon.",
         "IconDescHideNotes": "Skrij opombe za ta časovni razpon.",
         "ViewAndAddAnnotations": "Preglej in dodaj opombe za %s..."
-    },
-    "AnonymizeIP": {
-        "PluginDescription": "Anonimiziraj zadnji bajt IP naslova obiskovalca, da se s tem izpolnijo zahteve lokalnih zakonov\/smernic o zasebnosti."
     },
     "API": {
         "GenerateVisits": "Če nimate današnjih podatkov, potem lahko najprej ustvarite nekaj podatkov s %s vtičnikom. Vtičnik %s lahko omogočite in nato kliknete na 'Visitor Generator' meni v Piwik administraciji.",
@@ -71,8 +72,10 @@
         "ClickHereToOptOut": "Kliknite tu, če želite odstopiti.",
         "CustomLogoHelpText": "Piwik-ov logo lahko prilagodite po vaših željah. Spremembe bodo vidne tako v uporabniškem vmesniku, kot v email poročilih.",
         "EmailServerSettings": "Nastavitev strežnika za email",
+        "ImageTracking": "Sledenje s pomočjo slike",
+        "LatestBetaRelease": "Zadnja beta različica",
+        "LatestStableRelease": "Zadnja stabilna različica",
         "LogoUpload": "Izberite Logo za nalaganje",
-        "MenuCommunity": "Skupnost",
         "MenuDiagnostic": "Diagnostika",
         "MenuGeneralSettings": "Splošne nastavitve",
         "MenuManage": "Upravljaj",
@@ -170,30 +173,15 @@
         "WidgetsAndDashboard": "Gradniki & Kontrolna Plošča"
     },
     "Feedback": {
-        "CategoryHire": "Najemite Piwiki-svetovalca",
-        "CategorySecurity": "Prijavi varnostno napako",
-        "CategoryShareStory": "Delite Piwik zgodbo o uspehu",
-        "CategorySponsor": "Sponzorirajte Piwik",
         "ContactThePiwikTeam": "Kontaktiraje Piwik-ovo ekipo!",
-        "DetailsPlease": "(prosimu vključite podrobnosti)",
         "DoYouHaveBugReportOrFeatureRequest": "Imate napako ali pa željo, ki nam jo želite sporočiti?",
-        "ExceptionBodyLength": "Sporočilo mora biti dolgo vsaj %s znakov.",
-        "ExceptionNoUrls": "Sporočilo ne sme vsebovati URL-ja, da ne bo padlo pod vsiljeno pošto.",
-        "HowToExclude": "Kako izključim sledenje mojih obiskov?",
         "IWantTo": "Želim:",
         "LearnWaysToParticipate": "Oglejte si vse načine kako lahko %ssodelujete%s",
         "ManuallySendEmailTo": "Prosimo, da sporočilo ročno pošljete",
-        "MessageSent": "Vaše sporočilo je bilo poslano Piwik-ovi ekipi.",
-        "MyEmailAddress": "Moj email:",
-        "MyMessage": "Moje sporočilo:",
         "PluginDescription": "Podajte vašo povratno informacijo ekipi Piwik. Zaupajte nam vaše ideje in predloge!",
         "SendFeedback": "Pošlji povratno informacijo",
         "ThankYou": "Hvala, ker nam pomagate izboljšati Piwik!",
-        "ThePiwikTeam": "Piwik-ova ekipa",
-        "ViewAnswersToFAQ": "Oglejte si odgovore na %sPogosto Zastavljena Vprašanja (FAQ)%s",
-        "VisitTheForums": "Obiščite %sForume%s",
-        "WhyAreMyVisitsNoTracked": "Zakaj niso obiskovalci moje spletne strani sledeni?",
-        "WhyWrongCountry": "Zakaj Piwik prikazuje moje obiske iz napačne države?"
+        "VisitTheForums": "Obiščite %sForume%s"
     },
     "General": {
         "AbandonedCarts": "Opuščeni Vozički",
@@ -319,7 +307,6 @@
         "EnglishLanguageName": "Slovenian",
         "Error": "Napaka",
         "ErrorRequest": "Opa... Med zahtevo je prišlo do napake. Prosimo, poskusite znova.",
-        "ExceptionCheckUserIsSuperUserOrTheUser": "Uporabnik mora biti administrator ali uporabnik '%s'.",
         "ExceptionConfigurationFileNotFound": "Konfiguracijska datoteka {%s} ni bila najdena.",
         "ExceptionDatabaseVersion": "Vaša %1$s različica je %2$s, vendar Piwik potrebuje vsaj %3$s.",
         "ExceptionFileIntegrity": "Preverjanje integritete ni bilo uspešno: %s",
@@ -446,7 +433,6 @@
         "Password": "Geslo",
         "Period": "Obdobje",
         "Piechart": "Kolačni diagram",
-        "PiwikXIsAvailablePleaseNotifyPiwikAdmin": "%s je na voljo. Prosimo, da o tem obvestite skrbnika strani.",
         "PiwikXIsAvailablePleaseUpdateNow": "Piwik %1$s je na voljo. %2$sProsimo posodobite ga zdaj!ow!%3$s (oglejte si %4$sspremembe%5$s).",
         "PleaseSpecifyValue": "Prosimo, navedite vrednost za \"%s\"",
         "PleaseUpdatePiwik": "Prosimo, da posodobite Piwik",
@@ -689,6 +675,7 @@
         "Evolution": "Evolucija"
     },
     "PrivacyManager": {
+        "AnonymizeIpInlineHelp": "Anonimiziraj zadnji bajt IP naslova obiskovalca, da se s tem izpolnijo zahteve lokalnih zakonov\/smernic o zasebnosti.",
         "ClickHereSettings": "Kliknite tu za dostop do %s nastavitev.",
         "DeleteLogInfo": "Dnevniki iz sledečih tabel bodo izbrizani: %s",
         "DeleteLogsOlderThan": "Izbriši dnevnike, starejše od",
@@ -704,13 +691,13 @@
         "SubmenuLocationsProvider": "Lokacije & Ponudnik",
         "WidgetProviders": "Ponudniki"
     },
-    "Referers": {
+    "Referrers": {
         "Campaigns": "Kampanje",
         "ColumnCampaign": "Kampanja",
         "ColumnSearchEngine": "Spletni Iskalnik",
         "ColumnWebsite": "Spletna stran",
         "ColumnWebsitePage": "Spletna stran",
-        "DetailsByRefererType": "Podrobnosti o tipu napotitelja",
+        "DetailsByReferrerType": "Podrobnosti o tipu napotitelja",
         "DirectEntry": "Neposreden obisk",
         "Distinct": "Različnih napotiteljev po tipu",
         "DistinctCampaigns": "različne kampanje",

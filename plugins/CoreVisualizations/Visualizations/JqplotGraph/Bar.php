@@ -5,14 +5,12 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik_Plugins
- * @package CoreVisualizations
  */
 
 namespace Piwik\Plugins\CoreVisualizations\Visualizations\JqplotGraph;
 
-use Piwik\Plugins\CoreVisualizations\Visualizations\JqplotGraph;
 use Piwik\Plugins\CoreVisualizations\JqplotDataGenerator;
+use Piwik\Plugins\CoreVisualizations\Visualizations\JqplotGraph;
 
 /**
  * Visualization that renders HTML for a Bar graph using jqPlot.
@@ -20,18 +18,22 @@ use Piwik\Plugins\CoreVisualizations\JqplotDataGenerator;
 class Bar extends JqplotGraph
 {
     const ID = 'graphVerticalBar';
+    const FOOTER_ICON       = 'plugins/Zeitgeist/images/chart_bar.png';
+    const FOOTER_ICON_TITLE = 'General_VBarGraph';
 
-    public function __construct($view)
+    public function beforeRender()
     {
-        parent::__construct($view);
-        $view->datatable_js_type = 'JqplotBarGraphDataTable';
+        parent::beforeRender();
+
+        $this->config->datatable_js_type = 'JqplotBarGraphDataTable';
     }
 
-    public static function getDefaultPropertyValues()
+    public static function getDefaultConfig()
     {
-        $result = parent::getDefaultPropertyValues();
-        $result['visualization_properties']['graph']['max_graph_elements'] = 6;
-        return $result;
+        $config = new Config();
+        $config->max_graph_elements = 6;
+
+        return $config;
     }
 
     protected function makeDataGenerator($properties)

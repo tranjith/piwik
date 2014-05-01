@@ -5,18 +5,17 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik_Plugins
- * @package CoreVisualizations
  */
 namespace Piwik\Plugins\CoreVisualizations\JqplotDataGenerator;
 
-use Piwik\Piwik;
+
+use Piwik\Archive\DataTableFactory;
 use Piwik\Common;
 use Piwik\DataTable;
 use Piwik\DataTable\Row;
-use Piwik\ViewDataTable;
-use Piwik\Url;
+use Piwik\Menu\MenuMain;
 use Piwik\Plugins\CoreVisualizations\JqplotDataGenerator;
+use Piwik\Url;
 
 /**
  * Generates JQPlot JSON data/config for evolution graphs.
@@ -25,30 +24,31 @@ class Evolution extends JqplotDataGenerator
 {
     /**
      * @param DataTable|DataTable\Map $dataTable
+     * @param $visualization
      */
     protected function initChartObjectData($dataTable, $visualization)
     {
         // if the loaded datatable is a simple DataTable, it is most likely a plugin plotting some custom data
         // we don't expect plugin developers to return a well defined Set
-        /* TODO remove completely? unecessary if DataTableCollection is created
+
         if ($dataTable instanceof DataTable) {
-            parent::initChartObjectData($dataTable);
+            parent::initChartObjectData($dataTable, $visualization);
             return;
-        }*/
+        }
 
         // the X label is extracted from the 'period' object in the table's metadata
         $xLabels = array();
-        foreach ($dataTable->getArray() as $metadataDataTable) {
-            $xLabels[] = $metadataDataTable->getMetadata('period')->getLocalizedShortString(); // eg. "Aug 2009"
+        foreach ($dataTable->getDataTables() as $metadataDataTable) {
+            $xLabels[] = $metadataDataTable->getMetadata(DataTableFactory::TABLE_METADATA_PERIOD_INDEX)->getLocalizedShortString(); // eg. "Aug 2009"
         }
 
         $units = $this->getUnitsForColumnsToDisplay();
 
         // if rows to display are not specified, default to all rows (TODO: perhaps this should be done elsewhere?)
-        $rowsToDisplay = $this->properties['visualization_properties']->rows_to_display
-            ?: array_unique($dataTable->getColumn('label'))
-            ?: array(false) // make sure that a series is plotted even if there is no data
-            ;
+        $rowsToDisplay = $this->properties['rows_to_display']
+            ? : array_unique($dataTable->getColumn('label'))
+                ? : array(false) // make sure that a series is plotted even if there is no data
+        ;
 
         // collect series data to show. each row-to-display/column-to-display permutation creates a series.
         $allSeriesData = array();
@@ -70,16 +70,16 @@ class Evolution extends JqplotDataGenerator
         $visualization->setAxisYValues($allSeriesData);
         $visualization->setAxisYUnits($seriesUnits);
 
-        $dataTables = $dataTable->getArray();
+        $dataTables = $dataTable->getDataTables();
 
         if ($this->isLinkEnabled()) {
             $idSite = Common::getRequestVar('idSite', null, 'int');
-            $periodLabel = reset($dataTables)->getMetadata('period')->getLabel();
+            $periodLabel = reset($dataTables)->getMetadata(DataTableFactory::TABLE_METADATA_PERIOD_INDEX)->getLabel();
 
             $axisXOnClick = array();
             $queryStringAsHash = $this->getQueryStringAsHash();
-            foreach ($dataTable->getArray() as $idDataTable => $metadataDataTable) {
-                $dateInUrl = $metadataDataTable->getMetadata('period')->getDateStart();
+            foreach ($dataTable->getDataTables() as $idDataTable => $metadataDataTable) {
+                $dateInUrl = $metadataDataTable->getMetadata(DataTableFactory::TABLE_METADATA_PERIOD_INDEX)->getDateStart();
                 $parameters = array(
                     'idSite'  => $idSite,
                     'period'  => $periodLabel,
@@ -92,9 +92,9 @@ class Evolution extends JqplotDataGenerator
                 }
                 $link = 'index.php?' .
                     Url::getQueryStringFromParameters(array(
-                        'module' => 'CoreHome',
-                        'action' => 'index',
-                    ) + $parameters)
+                            'module' => 'CoreHome',
+                            'action' => 'index',
+                        ) + $parameters)
                     . $hash;
                 $axisXOnClick[] = $link;
             }
@@ -102,10 +102,10 @@ class Evolution extends JqplotDataGenerator
         }
     }
 
-    private function getSeriesData($rowLabel, $columnName, $dataTable)
+    private function getSeriesData($rowLabel, $columnName, DataTable\Map $dataTable)
     {
         $seriesData = array();
-        foreach ($dataTable->getArray() as $childTable) {
+        foreach ($dataTable->getDataTables() as $childTable) {
             // get the row for this label (use the first if $rowLabel is false)
             if ($rowLabel === false) {
                 $row = $childTable->getFirstRow();
@@ -117,7 +117,7 @@ class Evolution extends JqplotDataGenerator
             if ($row === false) {
                 $seriesData[] = 0;
             } else {
-                $seriesData[] = $row->getColumn($columnName) ?: 0;
+                $seriesData[] = $row->getColumn($columnName) ? : 0;
             }
         }
         return $seriesData;
@@ -167,7 +167,7 @@ class Evolution extends JqplotDataGenerator
         foreach ($piwikParameters as $parameter) {
             unset($queryString[$parameter]);
         }
-        if (\Piwik\Menu\Main::getInstance()->isUrlFound($queryString)) {
+        if (MenuMain::getInstance()->isUrlFound($queryString)) {
             return $queryString;
         }
         return false;

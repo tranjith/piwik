@@ -29,6 +29,10 @@
         currentWeek = currentDate.getWeek();
     }
 
+    if(!piwik.currentDateString) {
+        // eg. Login form
+        return;
+    }
     setCurrentDate(piwik.currentDateString);
 
     var todayDate = new Date;
@@ -189,7 +193,7 @@
         return result;
     }
 
-    $(document).ready(function () {
+    $(function () {
 
         var datepickerElem = $('#datepicker').datepicker(getDatePickerOptions()),
             periodLabels = $('#periodString').find('.period-type label'),

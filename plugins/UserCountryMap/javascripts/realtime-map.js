@@ -58,8 +58,8 @@
 
         _initStandaloneMap: function () {
             $('.top_controls').hide();
-            $('.nav').on('piwikSwitchPage', function (event, item) {
-                var clickedMenuIsNotMap = ($(item).text() != "{{ 'UserCountryMap_RealTimeMap'|translate|e('js') }}");
+            $('.Menu--dashboard').on('piwikSwitchPage', function (event, item) {
+                var clickedMenuIsNotMap = ($(item).attr('href').indexOf('module=UserCountryMap&action=realtimeWorldMap') == -1);
                 if (clickedMenuIsNotMap) {
                     $('.top_controls').show();
                 }
@@ -81,6 +81,8 @@
                 changeVisitAlpha = typeof config.changeVisitAlpha === 'undefined' ? true : config.changeVisitAlpha,
                 removeOldVisits = typeof config.removeOldVisits === 'undefined' ? true : config.removeOldVisits,
                 doNotRefreshVisits = typeof config.doNotRefreshVisits === 'undefined' ? false : config.doNotRefreshVisits,
+                enableAnimation = typeof config.enableAnimation === 'undefined' ? true : config.enableAnimation,
+                forceNowValue = typeof config.forceNowValue === 'undefined' ? false : +config.forceNowValue,
                 width = main.width(),
                 lastTimestamp = -1,
                 lastVisits = [],
@@ -94,18 +96,29 @@
                 colorMode = 'default',
                 currentMap = 'world',
                 yesterday = false,
-
+                colorManager = piwik.ColorManager,
+                colors = colorManager.getColors('realtime-map', ['white-bg', 'white-fill', 'black-bg', 'black-fill', 'visit-stroke',
+                                                                 'website-referrer-color', 'direct-referrer-color', 'search-referrer-color',
+                                                                 'live-widget-highlight', 'live-widget-unhighlight', 'symbol-animate-fill']),
                 currentTheme = 'white',
                 colorTheme = {
                     white: {
-                        bg: '#fff',
-                        fill: '#aa9'
+                        bg: colors['white-bg'],
+                        fill: colors['white-fill']
                     },
                     black: {
-                        bg: '#000',
-                        fill: '#444440'
+                        bg: colors['black-bg'],
+                        fill: colors['black-fill']
                     }
-                };
+                },
+                visitStrokeColor = colors['visit-stroke'],
+                referrerColorWebsite = colors['referrer-color-website'],
+                referrerColorDirect = colors['referrer-color-direct'],
+                referrerColorSearch = colors['referrer-color-search'],
+                liveWidgetHighlightColor = colors['live-widget-highlight'],
+                liveWidgetUnhighlightColor = colors['live-widget-unhighlight'],
+                symbolAnimateFill = colors['symbol-animate-fill']
+                ;
 
             self.widget = $('#widgetRealTimeMaprealtimeMap').parent();
 
@@ -177,8 +190,8 @@
              * from the map
              */
             function age(r) {
-                var now = new Date().getTime() / 1000;
-                var o = (r.lastActionTimestamp - oldest) / (now - oldest);
+                var nowSecs = Math.floor(now);
+                var o = (r.lastActionTimestamp - oldest) / (nowSecs - oldest);
                 return Math.min(1, Math.max(0, o));
             }
 
@@ -235,9 +248,9 @@
                     engaged = self.config.siteHasGoals ? r.goalConversions > 0 : r.actions > 4;
                 if (colorMode == 'referrerType') {
                     col = ({
-                        website: '#F29007',
-                        direct: '#5170AE',
-                        search: '#CC3399'
+                        website: referrerColorWebsite,
+                        direct: referrerColorDirect,
+                        search: referrerColorSearch
                     })[r.referrerType];
                 }
                 // defu
@@ -255,7 +268,7 @@
             function visitSymbolAttrs(r) {
                 var result = {
                     fill: visitColor(r).hex(),
-                    stroke: '#fff',
+                    stroke: visitStrokeColor,
                     'stroke-width': 1 * age(r),
                     r: visitRadius(r),
                     cursor: 'pointer'
@@ -273,7 +286,7 @@
              */
             function highlightVisit(r) {
                 $('#visitsLive').find('li#' + r.idVisit + ' .datetime')
-                    .css('background', '#E4CD74');
+                    .css('background', liveWidgetHighlightColor);
             }
 
             /*
@@ -282,7 +295,7 @@
              */
             function unhighlightVisit(r) {
                 $('#visitsLive').find('li#' + r.idVisit + ' .datetime')
-                    .css({ background: '#E4E2D7' });
+                    .css({ background: liveWidgetUnhighlightColor });
             }
 
             /*
@@ -300,7 +313,7 @@
                 var col = s.path.attrs.fill,
                     rad = s.path.attrs.r;
                 s.path.show();
-                s.path.attr({ fill: '#fdb', r: 0.1, opacity: 1 });
+                s.path.attr({ fill: symbolAnimateFill, r: 0.1, opacity: 1 });
                 s.path.animate({ fill: col, r: rad }, 700, 'bounce');
 
             }
@@ -334,6 +347,7 @@
             function refreshVisits(firstRun) {
                 if (lastTimestamp != -1
                     && doNotRefreshVisits
+                    && !firstRun
                 ) {
                     return;
                 }
@@ -355,7 +369,7 @@
                     $('.realTimeMap_overlay .loading_data').hide();
 
                     // store current timestamp
-                    now = new Date().getTime() / 1000;
+                    now = forceNowValue || (new Date().getTime() / 1000);
 
                     if (firstRun) {  // if we run this the first time, we initialiize the map symbols
                         visitSymbols = map.addSymbols({
@@ -435,14 +449,16 @@
 
                         visitSymbols.layout().render();
 
-                        $.each(newSymbols, function (i, s) {
-                            if (i > 10) return false;
+                        if (enableAnimation) {
+                            $.each(newSymbols, function (i, s) {
+                                if (i > 10) return false;
 
-                            s.path.hide(); // hide new symbol at first
-                            var t = setTimeout(function () { animateSymbol(s); },
-                                1000 * (s.data.lastActionTimestamp - now) + config.liveRefreshAfterMs);
-                            symbolFadeInTimer.push(t);
-                        });
+                                s.path.hide(); // hide new symbol at first
+                                var t = setTimeout(function () { animateSymbol(s); },
+                                    1000 * (s.data.lastActionTimestamp - now) + config.liveRefreshAfterMs);
+                                symbolFadeInTimer.push(t);
+                            });
+                        }
 
                         lastTimestamp = report[0].lastActionTimestamp;
 

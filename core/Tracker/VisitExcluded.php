@@ -5,16 +5,13 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Piwik
  */
 namespace Piwik\Tracker;
 
 use Piwik\Common;
+use Piwik\Config;
 use Piwik\IP;
-use Piwik\Tracker\Cache;
-use Piwik\Tracker\IgnoreCookie;
-use Piwik\Tracker\Request;
+use Piwik\Piwik;
 
 /**
  * This class contains the logic to exclude some visitors from being tracked as per user settings
@@ -74,8 +71,16 @@ class VisitExcluded
             }
         }
 
-        /* custom filters can override the built-in filters above */
-        Piwik_PostEvent('Tracker.Visit.isExcluded', array(&$excluded));
+        /**
+         * Triggered on every tracking request.
+         * 
+         * This event can be used to tell the Tracker not to record this particular action or visit.
+         * 
+         * @param bool &$excluded Whether the request should be excluded or not. Initialized
+         *                        to `false`. Event subscribers should set it to `true` in
+         *                        order to exclude the request.
+         */
+        Piwik::postEvent('Tracker.isExcludedVisit', array(&$excluded));
 
         /*
          * Following exclude operations happen after the hook.
@@ -125,8 +130,8 @@ class VisitExcluded
     {
         return (isset($_SERVER["HTTP_X_PURPOSE"])
             && in_array($_SERVER["HTTP_X_PURPOSE"], array("preview", "instant")))
-            || (isset($_SERVER['HTTP_X_MOZ'])
-                && $_SERVER['HTTP_X_MOZ'] == "prefetch");
+        || (isset($_SERVER['HTTP_X_MOZ'])
+            && $_SERVER['HTTP_X_MOZ'] == "prefetch");
     }
 
     /**
@@ -139,19 +144,30 @@ class VisitExcluded
     protected function isNonHumanBot()
     {
         $allowBots = $this->request->getParam('bots');
+
         return !$allowBots
-            && (strpos($this->userAgent, 'Googlebot') !== false // Googlebot
-                || strpos($this->userAgent, 'Google Web Preview') !== false // Google Instant
-                || strpos($this->userAgent, 'Google Page Speed Insights') !== false // #4049
-                || strpos($this->userAgent, 'Google (+https://developers.google.com') !== false // Google Snippet https://developers.google.com/+/web/snippet/
-                || strpos($this->userAgent, 'facebookexternalhit') !== false // http://www.facebook.com/externalhit_uatext.php
-                || strpos($this->userAgent, 'bingbot') !== false // Bingbot
-                || strpos($this->userAgent, 'YottaaMonitor') !== false // Yottaa
-                || strpos($this->userAgent, 'CloudFlare') !== false // CloudFlare-AlwaysOnline
-                || IP::isIpInRange($this->ip, $this->getBotIpRanges()));
+            // Seen in the wild
+        && (strpos($this->userAgent, 'Googlebot') !== false // Googlebot
+            || strpos($this->userAgent, 'Google Web Preview') !== false // Google Instant
+            || strpos($this->userAgent, 'AdsBot-Google') !== false // Google Adwords landing pages
+            || strpos($this->userAgent, 'Google Page Speed Insights') !== false // #4049
+            || strpos($this->userAgent, 'Google (+https://developers.google.com') !== false // Google Snippet https://developers.google.com/+/web/snippet/
+            || strpos($this->userAgent, 'facebookexternalhit') !== false // http://www.facebook.com/externalhit_uatext.php
+            || strpos($this->userAgent, 'baidu') !== false // Baidu
+            || strpos($this->userAgent, 'bingbot') !== false // Bingbot
+            || strpos($this->userAgent, 'YottaaMonitor') !== false // Yottaa
+            || strpos($this->userAgent, 'CloudFlare') !== false // CloudFlare-AlwaysOnline
+
+            // Added as they are popular bots
+            || strpos($this->userAgent, 'pingdom') !== false // pingdom
+            || strpos($this->userAgent, 'yandex') !== false // yandex
+            || strpos($this->userAgent, 'exabot') !== false // Exabot
+            || strpos($this->userAgent, 'sogou') !== false // Sogou
+            || strpos($this->userAgent, 'soso') !== false // Soso
+            || IP::isIpInRange($this->ip, $this->getBotIpRanges()));
     }
 
-    protected function getBotIpRanges()
+    protected function  getBotIpRanges()
     {
         return array(
             // Live/Bing/MSN
@@ -222,6 +238,25 @@ class VisitExcluded
                 if (stripos($this->userAgent, $excludedUserAgent) !== false) {
                     return true;
                 }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Returns true if the Referrer is a known spammer.
+     *
+     * @return bool
+     */
+    protected function isReferrerSpamExcluded()
+    {
+        $spamHosts = Config::getInstance()->Tracker['referrer_urls_spam'];
+        $spamHosts = explode(",", $spamHosts);
+
+        $referrerUrl = $this->request->getParam('urlref');
+        foreach($spamHosts as $spamHost) {
+            if( strpos($referrerUrl, $spamHost) !== false) {
+                return true;
             }
         }
         return false;

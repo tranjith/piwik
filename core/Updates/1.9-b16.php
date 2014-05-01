@@ -5,24 +5,24 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Updates
  */
+
+namespace Piwik\Updates;
+
 use Piwik\Common;
 use Piwik\Updater;
 use Piwik\Updates;
 
 /**
- * @package Updates
  */
-class Piwik_Updates_1_9_b16 extends Updates
+class Updates_1_9_b16 extends Updates
 {
     static function isMajorUpdate()
     {
         return true;
     }
 
-    static function getSql($schema = 'Myisam')
+    static function getSql()
     {
         return array(
             'ALTER TABLE  `' . Common::prefixTable('log_link_visit_action') . '`
@@ -38,7 +38,7 @@ class Piwik_Updates_1_9_b16 extends Updates
 			ADD sitesearch TINYINT DEFAULT 1 AFTER `excluded_parameters`,
             ADD sitesearch_keyword_parameters TEXT NOT NULL AFTER `sitesearch`,
             ADD sitesearch_category_parameters TEXT NOT NULL AFTER `sitesearch_keyword_parameters`'
-                                                                                                   => 1060,
+                                                                                             => 1060,
 
             // enable Site Search for all websites, users can manually disable the setting
             'UPDATE `' . Common::prefixTable('site') . '`

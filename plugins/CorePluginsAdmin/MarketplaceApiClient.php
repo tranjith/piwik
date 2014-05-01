@@ -5,24 +5,20 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik_Plugins
- * @package CorePluginsAdmin
  */
 namespace Piwik\Plugins\CorePluginsAdmin;
+
 use Piwik\CacheFile;
 use Piwik\Http;
-use Piwik\Piwik;
-use Piwik\PluginsManager;
 use Piwik\Version;
 
 /**
  *
- * @package CorePluginsAdmin
  */
 class MarketplaceApiClient
 {
     const CACHE_TIMEOUT_IN_SECONDS = 1200;
-    const HTTP_REQUEST_TIMEOUT = 30;
+    const HTTP_REQUEST_TIMEOUT = 3;
 
     private $domain = 'http://plugins.piwik.org';
 
@@ -71,10 +67,14 @@ class MarketplaceApiClient
         $params = array();
 
         foreach ($plugins as $plugin) {
-            $pluginName   = $plugin->getPluginName();
-            if (!PluginsManager::getInstance()->isPluginBundledWithCore($pluginName)) {
+            $pluginName = $plugin->getPluginName();
+            if (!\Piwik\Plugin\Manager::getInstance()->isPluginBundledWithCore($pluginName)) {
                 $params[] = array('name' => $plugin->getPluginName(), 'version' => $plugin->getVersion());
             }
+        }
+
+        if (empty($params)) {
+            return array();
         }
 
         $params = array('plugins' => $params);
@@ -90,7 +90,7 @@ class MarketplaceApiClient
 
     /**
      * @param  \Piwik\Plugin[] $plugins
-     * @param  bool            $themesOnly
+     * @param  bool $themesOnly
      * @return array
      */
     public function getInfoOfPluginsHavingUpdate($plugins, $themesOnly)
@@ -101,6 +101,7 @@ class MarketplaceApiClient
 
         foreach ($hasUpdates as $pluginHavingUpdate) {
             $plugin = $this->getPluginInfo($pluginHavingUpdate['name']);
+            $plugin['repositoryChangelogUrl'] = $pluginHavingUpdate['repositoryChangelogUrl'];
 
             if (!empty($plugin['isTheme']) == $themesOnly) {
                 $pluginDetails[] = $plugin;
@@ -135,18 +136,18 @@ class MarketplaceApiClient
     private function fetch($action, $params)
     {
         ksort($params);
-        $query  = http_build_query($params);
+        $query = http_build_query($params);
         $result = $this->getCachedResult($action, $query);
 
         if (false === $result) {
             $endpoint = $this->domain . '/api/1.0/';
-            $url      = sprintf('%s%s?%s', $endpoint, $action, $query);
+            $url = sprintf('%s%s?%s', $endpoint, $action, $query);
             $response = Http::sendHttpRequest($url, static::HTTP_REQUEST_TIMEOUT);
-            $result   = json_decode($response, true);
+            $result = json_decode($response, true);
 
             if (is_null($result)) {
                 $message = sprintf('There was an error reading the response from the Marketplace: %s. Please try again later.',
-                                   substr($response, 0, 50));
+                    substr($response, 0, 50));
                 throw new MarketplaceApiException($message);
             }
 
@@ -193,7 +194,7 @@ class MarketplaceApiClient
         }
 
         $latestVersion = array_pop($plugin['versions']);
-        $downloadUrl   = $latestVersion['download'];
+        $downloadUrl = $latestVersion['download'];
 
         return $this->domain . $downloadUrl . '?coreVersion=' . Version::VERSION;
     }

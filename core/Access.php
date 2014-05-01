@@ -5,46 +5,37 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Piwik
  */
 namespace Piwik;
 
-use Piwik\Config;
-use Piwik\Common;
-use Piwik\Auth;
-use Piwik\Site;
 use Piwik\Db;
+use Piwik\Plugins\UsersManager\API as APIUsersManager;
 
 /**
- * Class to handle User Access:
- * - loads user access from the AuthResult object
- * - provides easy to use API to check the permissions for the current (check* methods)
+ * Singleton that manages user access to Piwik resources.
+ * 
+ * To check whether a user has access to a resource, use one of the {@link Piwik Piwik::checkUser...}
+ * methods.
  *
- * In Piwik there are mainly 4 access levels
- * - no access
- * - VIEW access
- * - ADMIN access
- * - Super admin access
+ * In Piwik there are four different access levels:
+ * 
+ * - **no access**: Users with this access level cannot view the resource.
+ * - **view access**: Users with this access level can view the resource, but cannot modify it.
+ * - **admin access**: Users with this access level can view and modify the resource.
+ * - **Super User access**: Only the Super User has this access level. It means the user can do
+ *                          whatever he/she wants.
+ * 
+ *                          Super user access is required to set some configuration options.
+ *                          All other options are specific to the user or to a website.
  *
- * An access level is on a per website basis.
- * A given user has a given access level for a given website.
- * For example:
- * User Noemie has
- *    - VIEW access on the website 1,
- *  - ADMIN on the website 2 and 4, and
- *  - NO access on the website 3 and 5
- *
- * There is only one Super User. He has ADMIN access to all the websites
- * and he only can change the main configuration settings.
- *
- * @package Piwik
- * @subpackage Access
+ * Access is granted per website. Uses with access for a website can view all
+ * data associated with that website.
+ * 
  */
 class Access
 {
     private static $instance = null;
-    
+
     /**
      * Gets the singleton instance. Creates it if necessary.
      */
@@ -52,12 +43,12 @@ class Access
     {
         if (self::$instance == null) {
             self::$instance = new self;
-            
-            Piwik_PostTestEvent('Access.createAccessSingleton', array(self::$instance));
+
+            Piwik::postEvent('Access.createAccessSingleton', array(&self::$instance));
         }
         return self::$instance;
     }
-    
+
     /**
      * Sets the singleton instance. For testing purposes.
      */
@@ -65,7 +56,7 @@ class Access
     {
         self::$instance = $instance;
     }
-    
+
     /**
      * Array of idsites available to the current user, indexed by permission level
      * @see getSitesIdWith*()
@@ -89,12 +80,12 @@ class Access
     protected $token_auth = null;
 
     /**
-     * Defines if the current user is the super user
-     * @see isSuperUser()
+     * Defines if the current user is the Super User
+     * @see hasSuperUserAccess()
      *
      * @var bool
      */
-    protected $isSuperUser = false;
+    protected $hasSuperUserAccess = false;
 
     /**
      * List of available permissions in Piwik
@@ -142,7 +133,7 @@ class Access
      * If the login/password is correct the user is either the SuperUser or a normal user.
      * We load the access levels for this user for all the websites.
      *
-     * @param null|Auth $auth  Auth adapter
+     * @param null|Auth $auth Auth adapter
      * @return bool  true on success, false if reloading access failed (when auth object wasn't specified and user is not enforced to be Super User)
      */
     public function reloadAccess(Auth $auth = null)
@@ -153,7 +144,7 @@ class Access
 
         // if the Auth wasn't set, we may be in the special case of setSuperUser(), otherwise we fail
         if (is_null($this->auth)) {
-            if ($this->isSuperUser()) {
+            if ($this->hasSuperUserAccess()) {
                 return $this->reloadAccessSuperUser();
             }
             return false;
@@ -162,18 +153,18 @@ class Access
         // access = array ( idsite => accessIdSite, idsite2 => accessIdSite2)
         $result = $this->auth->authenticate();
 
-        if (!$result->isValid()) {
+        if (!$result->wasAuthenticationSuccessful()) {
             return false;
         }
         $this->login = $result->getIdentity();
         $this->token_auth = $result->getTokenAuth();
 
         // case the superUser is logged in
-        if ($result->getCode() == AuthResult::SUCCESS_SUPERUSER_AUTH_CODE) {
+        if ($result->hasSuperUserAccess()) {
             return $this->reloadAccessSuperUser();
         }
         // in case multiple calls to API using different tokens, we ensure we reset it as not SU
-        $this->setSuperUser(false);
+        $this->setSuperUserAccess(false);
 
         // we join with site in case there are rows in access for an idsite that doesn't exist anymore
         // (backward compatibility ; before we deleted the site without deleting rows in _access table)
@@ -192,36 +183,33 @@ class Access
     /**
      * Returns the SQL query joining sites and access table for a given login
      *
-     * @param string $select  Columns or expression to SELECT FROM table, eg. "MIN(ts_created)"
+     * @param string $select Columns or expression to SELECT FROM table, eg. "MIN(ts_created)"
      * @return string  SQL query
      */
     public static function getSqlAccessSite($select)
     {
         return "SELECT " . $select . "
-						  FROM " . Common::prefixTable('access') . " as t1
-							JOIN " . Common::prefixTable('site') . " as t2 USING (idsite) " .
-            " WHERE login = ?";
+				FROM " . Common::prefixTable('access') . " as t1
+				JOIN " . Common::prefixTable('site') . " as t2 USING (idsite) " .
+              " WHERE login = ?";
     }
 
     /**
-     * Reload super user access
+     * Reload Super User access
      *
      * @return bool
      */
     protected function reloadAccessSuperUser()
     {
-        $this->isSuperUser = true;
-        
+        $this->hasSuperUserAccess = true;
+
         try {
             $allSitesId = Plugins\SitesManager\API::getInstance()->getAllSitesId();
-        } catch(\Exception $e) {
+        } catch (\Exception $e) {
             $allSitesId = array();
         }
         $this->idsitesByAccess['superuser'] = $allSitesId;
-        $this->login = Config::getInstance()->superuser['login'];
 
-        Piwik_PostTestEvent('Access.loadingSuperUserAccess', array(&$this->idsitesByAccess, &$this->login));
-        
         return true;
     }
 
@@ -231,24 +219,25 @@ class Access
      *
      * @param bool $bool
      */
-    public function setSuperUser($bool = true)
+    public function setSuperUserAccess($bool = true)
     {
         if ($bool) {
             $this->reloadAccessSuperUser();
         } else {
-            $this->isSuperUser = false;
+            $this->hasSuperUserAccess = false;
             $this->idsitesByAccess['superuser'] = array();
+
         }
     }
 
     /**
-     * Returns true if the current user is logged in as the super user
+     * Returns true if the current user is logged in as the Super User
      *
      * @return bool
      */
-    public function isSuperUser()
+    public function hasSuperUserAccess()
     {
-        return $this->isSuperUser;
+        return $this->hasSuperUserAccess;
     }
 
     /**
@@ -269,17 +258,6 @@ class Access
     public function getTokenAuth()
     {
         return $this->token_auth;
-    }
-    
-    /**
-     * Returns the super user's login.
-     * 
-     * @return string
-     */
-    public function getSuperUserLogin()
-    {
-        $superuser = Config::getInstance()->superuser;
-        return $superuser['login'];
     }
 
     /**
@@ -330,10 +308,10 @@ class Access
      *
      * @throws \Piwik\NoAccessException
      */
-    public function checkUserIsSuperUser()
+    public function checkUserHasSuperUserAccess()
     {
-        if (!$this->isSuperUser()) {
-            throw new NoAccessException(Piwik_TranslateException('General_ExceptionPrivilege', array("'superuser'")));
+        if (!$this->hasSuperUserAccess()) {
+            throw new NoAccessException(Piwik::translate('General_ExceptionPrivilege', array("'superuser'")));
         }
     }
 
@@ -344,12 +322,12 @@ class Access
      */
     public function checkUserHasSomeAdminAccess()
     {
-        if ($this->isSuperUser()) {
+        if ($this->hasSuperUserAccess()) {
             return;
         }
         $idSitesAccessible = $this->getSitesIdWithAdminAccess();
         if (count($idSitesAccessible) == 0) {
-            throw new NoAccessException(Piwik_TranslateException('General_ExceptionPrivilegeAtLeastOneWebsite', array('admin')));
+            throw new NoAccessException(Piwik::translate('General_ExceptionPrivilegeAtLeastOneWebsite', array('admin')));
         }
     }
 
@@ -360,12 +338,12 @@ class Access
      */
     public function checkUserHasSomeViewAccess()
     {
-        if ($this->isSuperUser()) {
+        if ($this->hasSuperUserAccess()) {
             return;
         }
         $idSitesAccessible = $this->getSitesIdWithAtLeastViewAccess();
         if (count($idSitesAccessible) == 0) {
-            throw new NoAccessException(Piwik_TranslateException('General_ExceptionPrivilegeAtLeastOneWebsite', array('view')));
+            throw new NoAccessException(Piwik::translate('General_ExceptionPrivilegeAtLeastOneWebsite', array('view')));
         }
     }
 
@@ -373,19 +351,19 @@ class Access
      * This method checks that the user has ADMIN access for the given list of websites.
      * If the user doesn't have ADMIN access for at least one website of the list, we throw an exception.
      *
-     * @param int|array $idSites  List of ID sites to check
+     * @param int|array $idSites List of ID sites to check
      * @throws \Piwik\NoAccessException If for any of the websites the user doesn't have an ADMIN access
      */
     public function checkUserHasAdminAccess($idSites)
     {
-        if ($this->isSuperUser()) {
+        if ($this->hasSuperUserAccess()) {
             return;
         }
         $idSites = $this->getIdSites($idSites);
         $idSitesAccessible = $this->getSitesIdWithAdminAccess();
         foreach ($idSites as $idsite) {
             if (!in_array($idsite, $idSitesAccessible)) {
-                throw new NoAccessException(Piwik_TranslateException('General_ExceptionPrivilegeAccessWebsite', array("'admin'", $idsite)));
+                throw new NoAccessException(Piwik::translate('General_ExceptionPrivilegeAccessWebsite', array("'admin'", $idsite)));
             }
         }
     }
@@ -394,19 +372,19 @@ class Access
      * This method checks that the user has VIEW or ADMIN access for the given list of websites.
      * If the user doesn't have VIEW or ADMIN access for at least one website of the list, we throw an exception.
      *
-     * @param int|array|string $idSites  List of ID sites to check (integer, array of integers, string comma separated list of integers)
+     * @param int|array|string $idSites List of ID sites to check (integer, array of integers, string comma separated list of integers)
      * @throws \Piwik\NoAccessException  If for any of the websites the user doesn't have an VIEW or ADMIN access
      */
     public function checkUserHasViewAccess($idSites)
     {
-        if ($this->isSuperUser()) {
+        if ($this->hasSuperUserAccess()) {
             return;
         }
         $idSites = $this->getIdSites($idSites);
         $idSitesAccessible = $this->getSitesIdWithAtLeastViewAccess();
         foreach ($idSites as $idsite) {
             if (!in_array($idsite, $idSitesAccessible)) {
-                throw new NoAccessException(Piwik_TranslateException('General_ExceptionPrivilegeAccessWebsite', array("'view'", $idsite)));
+                throw new NoAccessException(Piwik::translate('General_ExceptionPrivilegeAccessWebsite', array("'view'", $idsite)));
             }
         }
     }
@@ -431,10 +409,9 @@ class Access
 }
 
 /**
- * Exception thrown when a user doesn't  have sufficient access.
+ * Exception thrown when a user doesn't have sufficient access to a resource.
  *
- * @package Piwik
- * @subpackage Access
+ * @api
  */
 class NoAccessException extends \Exception
 {

@@ -1,5 +1,5 @@
 <?php
-use Piwik\Common;
+
 use Piwik\Translate;
 
 /**
@@ -33,7 +33,6 @@ class TranslateTest extends PHPUnit_Framework_TestCase
 
     /**
      * @group Core
-     * @group Translate
      * @dataProvider getCleanTestData
      */
     public function testClean($data, $expected)

@@ -5,14 +5,14 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Piwik
  */
 namespace Piwik;
 
 use Exception;
+use Piwik\Period\Range;
 use Piwik\Translate;
 use Piwik\Visualization\Sparkline;
+use Piwik\View\RenderTokenParser;
 use Twig_Environment;
 use Twig_Extension_Debug;
 use Twig_Loader_Chain;
@@ -23,14 +23,12 @@ use Twig_SimpleFunction;
 /**
  * Twig class
  *
- * @package Piwik
- * @subpackage Twig
  */
 class Twig
 {
     const SPARKLINE_TEMPLATE = '<img alt="" data-src="%s" width="%d" height="%d" />
     <script type="text/javascript">$(function() { piwik.initSparklines(); });</script>';
-    
+
     /**
      * @var Twig_Environment
      */
@@ -46,11 +44,14 @@ class Twig
         $chainLoader = new Twig_Loader_Chain(array($loader));
 
         // Create new Twig Environment and set cache dir
+        $templatesCompiledPath = PIWIK_USER_PATH . '/tmp/templates_c';
+        $templatesCompiledPath = SettingsPiwik::rewriteTmpPathWithHostname($templatesCompiledPath);
+
         $this->twig = new Twig_Environment($chainLoader,
             array(
                  'debug'            => true, // to use {{ dump(var) }} in twig templates
                  'strict_variables' => true, // throw an exception if variables are invalid
-                 'cache'            => PIWIK_USER_PATH . '/tmp/templates_c',
+                 'cache'            => $templatesCompiledPath,
             )
         );
         $this->twig->addExtension(new Twig_Extension_Debug());
@@ -61,19 +62,35 @@ class Twig
         $this->addFilter_sumTime();
         $this->addFilter_money();
         $this->addFilter_truncate();
+        $this->addFilter_notificiation();
+        $this->addFilter_percentage();
+        $this->addFilter_prettyDate();
         $this->twig->addFilter(new Twig_SimpleFilter('implode', 'implode'));
+        $this->twig->addFilter(new Twig_SimpleFilter('ucwords', 'ucwords'));
 
         $this->addFunction_includeAssets();
         $this->addFunction_linkTo();
         $this->addFunction_sparkline();
         $this->addFunction_postEvent();
         $this->addFunction_isPluginLoaded();
+        $this->addFunction_getJavascriptTranslations();
+
+        $this->twig->addTokenParser(new RenderTokenParser());
+    }
+
+    protected function addFunction_getJavascriptTranslations()
+    {
+        $getJavascriptTranslations = new Twig_SimpleFunction(
+            'getJavascriptTranslations',
+            array('Piwik\\Translate', 'getJavascriptTranslations')
+        );
+        $this->twig->addFunction($getJavascriptTranslations);
     }
 
     protected function addFunction_isPluginLoaded()
     {
         $isPluginLoadedFunction = new Twig_SimpleFunction('isPluginLoaded', function ($pluginName) {
-            return PluginsManager::getInstance()->isPluginLoaded($pluginName);
+            return \Piwik\Plugin\Manager::getInstance()->isPluginLoaded($pluginName);
         });
         $this->twig->addFunction($isPluginLoadedFunction);
     }
@@ -88,9 +105,9 @@ class Twig
             $assetType = strtolower($params['type']);
             switch ($assetType) {
                 case 'css':
-                    return AssetManager::getCssAssets();
+                    return AssetManager::getInstance()->getCssInclusionDirective();
                 case 'js':
-                    return AssetManager::getJsAssets();
+                    return AssetManager::getInstance()->getJsInclusionDirective();
                 default:
                     throw new Exception("The twig function includeAssets 'type' parameter needs to be either 'css' or 'js'.");
             }
@@ -101,8 +118,17 @@ class Twig
     protected function addFunction_postEvent()
     {
         $postEventFunction = new Twig_SimpleFunction('postEvent', function ($eventName) {
+            // get parameters to twig function
+            $params = func_get_args();
+            // remove the first value (event name)
+            array_shift($params);
+
+            // make the first value the string that will get output in the template
+            // plugins can modify this string
             $str = '';
-            Piwik_PostEvent($eventName, array(&$str));
+            $params = array_merge( array( &$str ), $params);
+
+            Piwik::postEvent($eventName, $params);
             return $str;
         }, array('is_safe' => array('html')));
         $this->twig->addFunction($postEventFunction);
@@ -132,7 +158,7 @@ class Twig
     private function getDefaultThemeLoader()
     {
         $themeLoader = new Twig_Loader_Filesystem(array(
-                                                       sprintf("%s/plugins/%s/templates/", PIWIK_INCLUDE_PATH, PluginsManager::DEFAULT_THEME)
+                                                       sprintf("%s/plugins/%s/templates/", PIWIK_INCLUDE_PATH, \Piwik\Plugin\Manager::DEFAULT_THEME)
                                                   ));
 
         return $themeLoader;
@@ -141,6 +167,51 @@ class Twig
     public function getTwigEnvironment()
     {
         return $this->twig;
+    }
+
+    protected function addFilter_notificiation()
+    {
+        $twigEnv = $this->getTwigEnvironment();
+        $notificationFunction = new Twig_SimpleFilter('notification', function ($message, $options) use ($twigEnv) {
+
+            $template = '<div style="display:none" data-role="notification" ';
+
+            foreach ($options as $key => $value) {
+                if (ctype_alpha($key)) {
+                    $template .= sprintf('data-%s="%s" ', $key, twig_escape_filter($twigEnv, $value, 'html_attr'));
+                }
+            }
+
+            $template .= '>';
+
+            if (!empty($options['raw'])) {
+                $template .= $message;
+            } else {
+                $template .= twig_escape_filter($twigEnv, $message, 'html');
+            }
+
+            $template .= '</div>';
+
+            return $template;
+
+        }, array('is_safe' => array('html')));
+        $this->twig->addFilter($notificationFunction);
+    }
+
+    protected function addFilter_prettyDate()
+    {
+        $prettyDate = new Twig_SimpleFilter('prettyDate', function ($dateString, $period) {
+            return Range::factory($period, $dateString)->getLocalizedShortString();
+        });
+        $this->twig->addFilter($prettyDate);
+    }
+
+    protected function addFilter_percentage()
+    {
+        $percentage = new Twig_SimpleFilter('percentage', function ($string, $totalValue, $precision = 1) {
+            return Piwik::getPercentageSafe($string, $totalValue, $precision) . '%';
+        });
+        $this->twig->addFilter($percentage);
     }
 
     protected function addFilter_truncate()
@@ -198,7 +269,7 @@ class Twig
             }
 
             try {
-                $stringTranslated = Piwik_Translate($stringToken, $aValues);
+                $stringTranslated = Piwik::translate($stringToken, $aValues);
             } catch (Exception $e) {
                 $stringTranslated = $stringToken;
             }
@@ -209,7 +280,7 @@ class Twig
 
     private function addPluginNamespaces(Twig_Loader_Filesystem $loader)
     {
-        $plugins = PluginsManager::getInstance()->getLoadedPluginsName();
+        $plugins = \Piwik\Plugin\Manager::getInstance()->getAllPluginsNames();
         foreach ($plugins as $name) {
             $path = sprintf("%s/plugins/%s/templates/", PIWIK_INCLUDE_PATH, $name);
             if (is_dir($path)) {

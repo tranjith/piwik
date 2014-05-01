@@ -5,17 +5,14 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Piwik
  */
 namespace Piwik\DataTable;
 
 use Exception;
+use Piwik\DataTable;
 use Piwik\Loader;
 use Piwik\Metrics;
 use Piwik\Piwik;
-use Piwik\DataTable;
-use Piwik\DataTable\Simple;
 
 /**
  * A DataTable Renderer can produce an output given a DataTable object.
@@ -24,9 +21,6 @@ use Piwik\DataTable\Simple;
  *  $render = new Xml();
  *  $render->setTable($dataTable);
  *  echo $render;
- *
- * @package Piwik
- * @subpackage DataTable
  */
 abstract class Renderer
 {
@@ -126,7 +120,7 @@ abstract class Renderer
     protected function getExceptionMessage()
     {
         $message = $this->exception->getMessage();
-        if (Piwik_ShouldPrintBackTraceWithMessage()) {
+        if (\Piwik_ShouldPrintBackTraceWithMessage()) {
             $message .= "\n" . $this->exception->getTraceAsString();
         }
         return self::renderHtmlEntities($message);
@@ -144,7 +138,7 @@ abstract class Renderer
     /**
      * Set the DataTable to be rendered
      *
-     * @param DataTable|Simple|DataTable\Map $table  table to be rendered
+     * @param DataTable|Simple|DataTable\Map $table table to be rendered
      * @throws Exception
      */
     public function setTable($table)
@@ -153,7 +147,7 @@ abstract class Renderer
             && !($table instanceof DataTable)
             && !($table instanceof DataTable\Map)
         ) {
-            throw new Exception("DataTable renderers renderer accepts only DataTable and Set instances, and array instances.");
+            throw new Exception("DataTable renderers renderer accepts only DataTable and Map instances, and arrays.");
         }
         $this->table = $table;
     }
@@ -161,7 +155,7 @@ abstract class Renderer
     /**
      * Set the Exception to be rendered
      *
-     * @param Exception $exception  to be rendered
+     * @param Exception $exception to be rendered
      * @throws Exception
      */
     public function setException($exception)
@@ -210,14 +204,14 @@ abstract class Renderer
         } catch (Exception $e) {
             $availableRenderers = implode(', ', self::getRenderers());
             @header('Content-Type: text/plain; charset=utf-8');
-            throw new Exception(Piwik_TranslateException('General_ExceptionInvalidRendererFormat', array($className, $availableRenderers)));
+            throw new Exception(Piwik::translate('General_ExceptionInvalidRendererFormat', array($className, $availableRenderers)));
         }
     }
 
     /**
      * Returns $rawData after all applicable characters have been converted to HTML entities.
      *
-     * @param String $rawData  data to be converted
+     * @param String $rawData data to be converted
      * @return String
      */
     static protected function renderHtmlEntities($rawData)
@@ -228,7 +222,7 @@ abstract class Renderer
     /**
      * Format a value to xml
      *
-     * @param string|number|bool $value  value to format
+     * @param string|number|bool $value value to format
      * @return int|string
      */
     public static function formatValueXml($value)

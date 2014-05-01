@@ -10,7 +10,7 @@ use Piwik\Date;
 /**
  * Adds two sites and tracks several visits all in the past.
  */
-class Test_Piwik_Fixture_TwoSitesVisitsInPast extends Test_Piwik_BaseFixture
+class Test_Piwik_Fixture_TwoSitesVisitsInPast extends Fixture
 {
     public $dateTimeFirstDateWebsite1 = '2010-03-06 01:22:33';
     public $dateTimeDateInPastWebsite1 = '2010-01-06 01:22:33';
@@ -32,8 +32,13 @@ class Test_Piwik_Fixture_TwoSitesVisitsInPast extends Test_Piwik_BaseFixture
 
     public function setUpWebsitesAndGoals()
     {
-        self::createWebsite($this->dateTimeFirstDateWebsite1);
-        self::createWebsite($this->dateTimeFirstDateWebsite2);
+        if (!self::siteCreated($idSite = 1)) {
+            self::createWebsite($this->dateTimeFirstDateWebsite1);
+        }
+
+        if (!self::siteCreated($idSite = 2)) {
+            self::createWebsite($this->dateTimeFirstDateWebsite2);
+        }
     }
 
     protected function trackVisits()

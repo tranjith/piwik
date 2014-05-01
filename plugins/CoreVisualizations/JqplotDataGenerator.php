@@ -5,17 +5,16 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik_Plugins
- * @package CoreVisualizations
  */
 
 namespace Piwik\Plugins\CoreVisualizations;
 
 use Exception;
+
 use Piwik\Common;
-use Piwik\Metrics;
 use Piwik\DataTable;
-use Piwik\ViewDataTable\Visualization;
+use Piwik\Metrics;
+use Piwik\Piwik;
 use Piwik\Plugins\CoreVisualizations\JqplotDataGenerator\Chart;
 
 require_once PIWIK_INCLUDE_PATH . '/plugins/CoreVisualizations/JqplotDataGenerator/Evolution.php';
@@ -28,7 +27,7 @@ require_once PIWIK_INCLUDE_PATH . '/plugins/CoreVisualizations/JqplotDataGenerat
 class JqplotDataGenerator
 {
     /**
-     * View properties. @see Piwik_ViewDataTable for more info.
+     * View properties. @see Piwik\ViewDataTable for more info.
      *
      * @var array
      */
@@ -61,10 +60,10 @@ class JqplotDataGenerator
     /**
      * Constructor.
      *
-     * @param array  $properties
+     * @param array $properties
      * @param string $graphType
      *
-     * @internal param \Piwik\ViewDataTable\Visualization\ $visualization
+     * @internal param \Piwik\Plugin\ViewDataTable $visualization
      */
     public function __construct($properties, $graphType)
     {
@@ -85,8 +84,8 @@ class JqplotDataGenerator
         if ($dataTable->getRowsCount() > 0) {
             // if addTotalRow was called in GenerateGraphHTML, add a row containing totals of
             // different metrics
-            if ($this->properties['visualization_properties']->add_total_row) {
-                $dataTable->queueFilter('AddSummaryRow', array(0, Piwik_Translate('General_Total'), null, false));
+            if ($this->properties['add_total_row']) {
+                $dataTable->queueFilter('AddSummaryRow', Piwik::translate('General_Total'));
             }
 
             $dataTable->applyQueuedFilters();
@@ -98,6 +97,7 @@ class JqplotDataGenerator
 
     /**
      * @param DataTable|DataTable\Map $dataTable
+     * @param $visualization
      */
     protected function initChartObjectData($dataTable, $visualization)
     {

@@ -5,15 +5,14 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik_Plugins
- * @package SEO
  */
 namespace Piwik\Plugins\SEO;
 
 use Exception;
+
 use Piwik\Http;
+use Piwik\Log;
 use Piwik\MetricsFormatter;
-use Piwik\Piwik;
 
 /**
  * The functions below are derived/adapted from GetRank.org's
@@ -22,7 +21,6 @@ use Piwik\Piwik;
  * @copyright Copyright (C) 2007 - 2010 GetRank.Org  All rights reserved.
  * @link http://www.getrank.org/free-pagerank-script/
  * @license GPL
- * @package SEO
  */
 class RankChecker
 {
@@ -190,7 +188,7 @@ class RankChecker
             $majesticInfo = $this->getMajesticInfo();
             return $majesticInfo['backlink_count'];
         } catch (Exception $e) {
-            Piwik::log($e->getMessage());
+            Log::info($e);
             return 0;
         }
     }
@@ -206,7 +204,7 @@ class RankChecker
             $majesticInfo = $this->getMajesticInfo();
             return $majesticInfo['referrer_domains_count'];
         } catch (Exception $e) {
-            Piwik::log($e->getMessage());
+            Log::info($e);
             return 0;
         }
     }

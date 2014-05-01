@@ -5,12 +5,9 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Piwik
  */
 namespace Piwik\DataTable\Renderer;
 
-use Piwik\DataTable\Renderer\Csv;
 
 /**
  * TSV export
@@ -18,8 +15,6 @@ use Piwik\DataTable\Renderer\Csv;
  * Excel doesn't import CSV properly, it expects TAB separated values by default.
  * TSV is therefore the 'CSV' that is Excel compatible
  *
- * @package Piwik
- * @subpackage DataTable
  */
 class Tsv extends Csv
 {

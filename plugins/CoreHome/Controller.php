@@ -5,33 +5,31 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik_Plugins
- * @package CoreHome
  */
 namespace Piwik\Plugins\CoreHome;
 
 use Exception;
 use Piwik\API\Request;
-use Piwik\CacheFile;
-use Piwik\Piwik;
 use Piwik\Common;
 use Piwik\Date;
-use Piwik\AssetManager;
 use Piwik\FrontController;
-use Piwik\Plugins\CorePluginsAdmin\MarketplaceApiClient;
-use Piwik\View;
-use Piwik\Url;
-use Piwik\UpdateCheck;
-use Piwik\Site;
+use Piwik\Menu\MenuMain;
+use Piwik\Notification\Manager as NotificationManager;
+use Piwik\Piwik;
 use Piwik\Plugins\CoreHome\DataTableRowAction\MultiRowEvolution;
 use Piwik\Plugins\CoreHome\DataTableRowAction\RowEvolution;
+use Piwik\Plugins\CorePluginsAdmin\MarketplaceApiClient;
+use Piwik\Plugins\Dashboard\DashboardManagerControl;
 use Piwik\Plugins\UsersManager\API;
+use Piwik\Site;
+use Piwik\UpdateCheck;
+use Piwik\Url;
+use Piwik\View;
 
 /**
  *
- * @package CoreHome
  */
-class Controller extends \Piwik\Controller
+class Controller extends \Piwik\Plugin\Controller
 {
     function getDefaultAction()
     {
@@ -46,7 +44,7 @@ class Controller extends \Piwik\Controller
 
         // User preference: default report to load is the All Websites dashboard
         if ($defaultReport == 'MultiSites'
-            && \Piwik\PluginsManager::getInstance()->isPluginActivated('MultiSites')
+            && \Piwik\Plugin\Manager::getInstance()->isPluginActivated('MultiSites')
         ) {
             $module = 'MultiSites';
         }
@@ -54,8 +52,7 @@ class Controller extends \Piwik\Controller
             $module = Piwik::getLoginPluginName();
         }
         $idSite = Common::getRequestVar('idSite', false, 'int');
-
-        parent::redirectToIndex($module, $action, !empty($idSite) ? $idSite : null);
+        parent::redirectToIndex($module, $action, $idSite);
     }
 
     public function showInContext()
@@ -67,14 +64,21 @@ class Controller extends \Piwik\Controller
         }
         $view = $this->getDefaultIndexView();
         $view->content = FrontController::getInstance()->fetchDispatch($controllerName, $actionName);
-        echo $view->render();
+        return $view->render();
+    }
+
+    public function markNotificationAsRead()
+    {
+        $notificationId = Common::getRequestVar('notificationId');
+        NotificationManager::cancel($notificationId);
     }
 
     protected function getDefaultIndexView()
     {
         $view = new View('@CoreHome/getDefaultIndexView');
         $this->setGeneralVariablesView($view);
-        $view->menu = Piwik_GetMenu();
+        $view->menu = MenuMain::getInstance()->getMenu();
+        $view->dashboardSettingsControl = new DashboardManagerControl();
         $view->content = '';
         return $view;
     }
@@ -90,7 +94,7 @@ class Controller extends \Piwik\Controller
         $websiteId = Common::getRequestVar('idSite', false, 'int');
         if ($websiteId) {
             $website = new Site($websiteId);
-            $datetimeCreationDate = $this->site->getCreationDate()->getDatetime();
+            $datetimeCreationDate = $website->getCreationDate()->getDatetime();
             $creationDateLocalTimezone = Date::factory($datetimeCreationDate, $website->getTimezone())->toString('Y-m-d');
             $todayLocalTimezone = Date::factory('now', $website->getTimezone())->toString('Y-m-d');
             if ($creationDateLocalTimezone == $todayLocalTimezone) {
@@ -107,7 +111,7 @@ class Controller extends \Piwik\Controller
     {
         $this->setDateTodayIfWebsiteCreatedToday();
         $view = $this->getDefaultIndexView();
-        echo $view->render();
+        return $view->render();
     }
 
     //  --------------------------------------------------------
@@ -121,7 +125,7 @@ class Controller extends \Piwik\Controller
     {
         $rowEvolution = $this->makeRowEvolution($isMulti = false);
         $view = new View('@CoreHome/getRowEvolutionPopover');
-        echo $rowEvolution->renderPopover($this, $view);
+        return $rowEvolution->renderPopover($this, $view);
     }
 
     /** Render the entire row evolution popover for multiple rows */
@@ -129,7 +133,7 @@ class Controller extends \Piwik\Controller
     {
         $rowEvolution = $this->makeRowEvolution($isMulti = true);
         $view = new View('@CoreHome/getMultiRowEvolutionPopover');
-        echo $rowEvolution->renderPopover($this, $view);
+        return $rowEvolution->renderPopover($this, $view);
     }
 
     /** Generic method to get an evolution graph or a sparkline for the row evolution popover */
@@ -144,7 +148,7 @@ class Controller extends \Piwik\Controller
         }
 
         $view = $rowEvolution->getRowEvolutionGraph();
-        return $this->renderView($view, $fetch);
+        return $this->renderView($view);
     }
 
     /** Utility function. Creates a RowEvolution instance. */
@@ -174,7 +178,7 @@ class Controller extends \Piwik\Controller
 
         $view = new View('@CoreHome/checkForUpdates');
         $this->setGeneralVariablesView($view);
-        echo $view->render();
+        return $view->render();
     }
 
     /**
@@ -184,11 +188,11 @@ class Controller extends \Piwik\Controller
     {
         $view = new View('@CoreHome/getDonateForm');
         if (Common::getRequestVar('widget', false)
-            && Piwik::isUserIsSuperUser()
+            && Piwik::hasUserSuperUserAccess()
         ) {
-            $view->footerMessage = Piwik_Translate('CoreHome_OnlyForAdmin');
+            $view->footerMessage = Piwik::translate('CoreHome_OnlyForSuperUserAccess');
         }
-        echo $view->render();
+        return $view->render();
     }
 
     /**
@@ -197,10 +201,10 @@ class Controller extends \Piwik\Controller
     public function getPromoVideo()
     {
         $view = new View('@CoreHome/getPromoVideo');
-        $view->shareText = Piwik_Translate('CoreHome_SharePiwikShort');
-        $view->shareTextLong = Piwik_Translate('CoreHome_SharePiwikLong');
+        $view->shareText = Piwik::translate('CoreHome_SharePiwikShort');
+        $view->shareTextLong = Piwik::translate('CoreHome_SharePiwikLong');
         $view->promoVideoUrl = 'http://www.youtube.com/watch?v=OslfF_EH81g';
-        echo $view->render();
+        return $view->render();
     }
 
     /**
@@ -222,5 +226,17 @@ class Controller extends \Piwik\Controller
 
         header("Location: $url");
         exit;
+    }
+
+    public function getSiteSelector()
+    {
+        return "<div piwik-siteselector class=\"sites_autocomplete\" switch-site-on-select=\"false\"></div>";
+    }
+
+    public function getPeriodSelector()
+    {
+        $view = new View("@CoreHome/_periodSelect");
+        $this->setGeneralVariablesView($view);
+        return $view->render();
     }
 }

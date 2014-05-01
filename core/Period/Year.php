@@ -5,18 +5,13 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Piwik
  */
 namespace Piwik\Period;
 
-use Piwik\Period;
 use Piwik\Date;
-use Piwik\Period\Month;
+use Piwik\Period;
 
 /**
- * @package Piwik
- * @subpackage Period
  */
 class Year extends Period
 {
@@ -82,12 +77,10 @@ class Year extends Period
      */
     function toString($format = 'ignored')
     {
-        if (!$this->subperiodsProcessed) {
-            $this->generate();
-        }
+        $this->generate();
         $stringMonth = array();
         foreach ($this->subperiods as $month) {
-            $stringMonth[] = $month->get("Y") . "-" . $month->get("m") . "-01";
+            $stringMonth[] = $month->getDateStart()->toString("Y") . "-" . $month->getDateStart()->toString("m") . "-01";
         }
         return $stringMonth;
     }

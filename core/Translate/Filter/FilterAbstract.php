@@ -5,15 +5,11 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Piwik
  */
 
 namespace Piwik\Translate\Filter;
 
 /**
- * @package Piwik
- * @subpackage Piwik_Db
  */
 abstract class FilterAbstract
 {
@@ -25,7 +21,6 @@ abstract class FilterAbstract
      * @param array $translations
      *
      * @return array   filtered translations
-     *
      */
     abstract public function filter($translations);
 

@@ -160,7 +160,7 @@ function ajaxHelper() {
      * @param {string} url
      */
     this.setUrl = function (url) {
-        this.getUrl = url;
+        this.addParams(broadcast.getValuesFromUrl(url), 'GET');
     };
 
     /**
@@ -207,28 +207,10 @@ function ajaxHelper() {
      * @return {void}
      */
     this.redirectOnSuccess = function (params) {
-        this.setCallback(function(response) {
-            // add updated=X to the URL so that a "Your changes have been saved" message is displayed
-            if (typeof params == 'object') {
-                params = piwikHelper.getQueryStringFromParameters(params);
-            }
-            var urlToRedirect = piwikHelper.getCurrentQueryStringWithParametersModified(params);
-            var updatedUrl = new RegExp('&updated=([0-9]+)');
-            var updatedCounter = updatedUrl.exec(urlToRedirect);
-            if (!updatedCounter) {
-                urlToRedirect += '&updated=1';
-            } else {
-                updatedCounter = 1 + parseInt(updatedCounter[1]);
-                urlToRedirect = urlToRedirect.replace(new RegExp('(&updated=[0-9]+)'), '&updated=' + updatedCounter);
-            }
-            var currentHashStr = window.location.hash;
-            if(currentHashStr.length > 0) {
-                urlToRedirect += currentHashStr;
-            }
-            piwikHelper.redirectToUrl(urlToRedirect);
+        this.setCallback(function() {
+            piwikHelper.redirect(params);
         });
     };
-
 
     /**
      * Sets the callback called in case of an error within the request
@@ -362,10 +344,28 @@ function ajaxHelper() {
                 }
 
                 if (response && response.result == 'error' && !that.useRegularCallbackInCaseOfError) {
+
+                    var placeAt = null;
+                    var type    = 'toast';
                     if ($(that.errorElement).length && response.message) {
-                        $(that.errorElement).html(response.message).fadeIn();
-                        piwikHelper.lazyScrollTo(that.errorElement, 250);
+                        $(that.errorElement).show();
+                        placeAt = that.errorElement;
+                        type    = null;
                     }
+
+                    if (response.message) {
+
+                        var UI = require('piwik/UI');
+                        var notification = new UI.Notification();
+                        notification.show(response.message, {
+                            placeat: placeAt,
+                            context: 'error',
+                            type: type,
+                            id: 'ajaxHelper'
+                        });
+                        notification.scrollToNotification();
+                    }
+
                 } else {
                     that.callback(response);
                 }

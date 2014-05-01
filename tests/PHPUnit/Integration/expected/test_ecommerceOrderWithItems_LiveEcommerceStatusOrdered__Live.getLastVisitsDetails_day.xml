@@ -12,6 +12,7 @@
 		<visitEcommerceStatus>ordered</visitEcommerceStatus>
 		<visitEcommerceStatusIcon>plugins/Zeitgeist/images/ecommerceOrder.gif</visitEcommerceStatusIcon>
 		<searches>0</searches>
+		<events>0</events>
 		<actions>0</actions>
 		<actionDetails>
 			<row>
@@ -82,13 +83,13 @@
 		<daysSinceLastEcommerceOrder>0</daysSinceLastEcommerceOrder>
 		<continent>Europe</continent>
 		<continentCode>eur</continentCode>
-		<country>France</country>
-		<countryCode>fr</countryCode>
-		<countryFlag>plugins/UserCountry/images/flags/fr.png</countryFlag>
+		<country>Poland</country>
+		<countryCode>pl</countryCode>
+		<countryFlag>plugins/UserCountry/images/flags/pl.png</countryFlag>
 		<region />
 		<regionCode />
 		<city />
-		<location>France</location>
+		<location>Poland</location>
 		<latitude />
 		<longitude />
 		<provider>Unknown</provider>
@@ -113,7 +114,7 @@
 		<browserCode>FF</browserCode>
 		<browserVersion>3.6</browserVersion>
 		<screenType>normal</screenType>
-		<deviceType>desktop</deviceType>
+		<deviceType>Desktop</deviceType>
 		<resolution>1024x768</resolution>
 		<screenTypeIcon>plugins/UserSettings/images/screens/normal.gif</screenTypeIcon>
 		<plugins>flash, java</plugins>
@@ -145,6 +146,7 @@
 		<visitEcommerceStatus>orderedThenAbandonedCart</visitEcommerceStatus>
 		<visitEcommerceStatusIcon>plugins/Zeitgeist/images/ecommerceOrder.gif</visitEcommerceStatusIcon>
 		<searches>0</searches>
+		<events>0</events>
 		<actions>3</actions>
 		<actionDetails>
 			<row>
@@ -152,8 +154,8 @@
 				<url>http://example.org/index.htm</url>
 				<pageTitle>View product left in cart</pageTitle>
 				<pageIdAction>2</pageIdAction>
-				<pageId>14</pageId>
 				
+				<pageId>14</pageId>
 				<customVariables>
 					<row>
 						<customVariablePageName2>_pkp</customVariablePageName2>
@@ -181,8 +183,8 @@
 				<url>http://example.org/index.htm</url>
 				<pageTitle>View product left in cart</pageTitle>
 				<pageIdAction>2</pageIdAction>
-				<pageId>15</pageId>
 				
+				<pageId>15</pageId>
 				<customVariables>
 					<row>
 						<customVariablePageName2>_pkp</customVariablePageName2>
@@ -210,8 +212,8 @@
 				<url>http://example.org/index.htm</url>
 				<pageTitle>View product left in cart</pageTitle>
 				<pageIdAction>2</pageIdAction>
-				<pageId>16</pageId>
 				
+				<pageId>16</pageId>
 				<customVariables>
 					<row>
 						<customVariablePageName3>_pks</customVariablePageName3>
@@ -230,7 +232,7 @@
 			</row>
 			<row>
 				<type>ecommerceAbandonedCart</type>
-				<revenue>2510.11</revenue>
+				<revenue>2510</revenue>
 				<items>4</items>
 				
 				<itemDetails>
@@ -291,13 +293,13 @@
 		<daysSinceLastEcommerceOrder>1</daysSinceLastEcommerceOrder>
 		<continent>Europe</continent>
 		<continentCode>eur</continentCode>
-		<country>France</country>
-		<countryCode>fr</countryCode>
-		<countryFlag>plugins/UserCountry/images/flags/fr.png</countryFlag>
+		<country>Poland</country>
+		<countryCode>pl</countryCode>
+		<countryFlag>plugins/UserCountry/images/flags/pl.png</countryFlag>
 		<region />
 		<regionCode />
 		<city />
-		<location>France</location>
+		<location>Poland</location>
 		<latitude />
 		<longitude />
 		<provider>Unknown</provider>
@@ -322,7 +324,7 @@
 		<browserCode>FF</browserCode>
 		<browserVersion>3.6</browserVersion>
 		<screenType>normal</screenType>
-		<deviceType>desktop</deviceType>
+		<deviceType>Desktop</deviceType>
 		<resolution>1024x768</resolution>
 		<screenTypeIcon>plugins/UserSettings/images/screens/normal.gif</screenTypeIcon>
 		<plugins>flash, java</plugins>

@@ -5,18 +5,16 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik_Plugins
- * @package UserCountry
  */
 namespace Piwik\Plugins\UserCountry\LocationProvider;
 
 use Exception;
+use Piwik\Piwik;
 use Piwik\Plugins\UserCountry\LocationProvider;
 
 /**
  * Base type for all GeoIP LocationProviders.
  *
- * @package UserCountry
  */
 abstract class GeoIp extends LocationProvider
 {
@@ -119,7 +117,7 @@ abstract class GeoIp extends LocationProvider
             }
 
             if (!$isResultCorrect) {
-                $unknown = Piwik_Translate('General_Unknown');
+                $unknown = Piwik::translate('General_Unknown');
 
                 $location = "'"
                     . (empty($location[self::CITY_NAME_KEY]) ? $unknown : $location[self::CITY_NAME_KEY])
@@ -134,7 +132,7 @@ abstract class GeoIp extends LocationProvider
                     . $expectedResult[self::COUNTRY_CODE_KEY] . "'";
 
                 $bind = array($testIp, $location, $expectedLocation);
-                return Piwik_Translate('UserCountry_TestIPLocatorFailed', $bind);
+                return Piwik::translate('UserCountry_TestIPLocatorFailed', $bind);
             }
 
             return true;
@@ -160,7 +158,7 @@ abstract class GeoIp extends LocationProvider
         if (isset($regionNames[$countryCode][$regionCode])) {
             return $regionNames[$countryCode][$regionCode];
         } else {
-            return Piwik_Translate('General_Unknown');
+            return Piwik::translate('General_Unknown');
         }
     }
 
@@ -234,8 +232,8 @@ abstract class GeoIp extends LocationProvider
     public static function isDatabaseInstalled()
     {
         return self::getPathToGeoIpDatabase(self::$dbNames['loc'])
-            || self::getPathToGeoIpDatabase(self::$dbNames['isp'])
-            || self::getPathToGeoIpDatabase(self::$dbNames['org']);
+        || self::getPathToGeoIpDatabase(self::$dbNames['isp'])
+        || self::getPathToGeoIpDatabase(self::$dbNames['org']);
     }
 
     /**

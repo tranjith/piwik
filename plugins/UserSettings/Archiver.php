@@ -5,18 +5,15 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik_Plugins
- * @package UserSettings
  */
 
 namespace Piwik\Plugins\UserSettings;
 
 use Piwik\Common;
 use Piwik\DataAccess\LogAggregator;
-use Piwik\Metrics;
-use Piwik\DataTable;
 use Piwik\DataArray;
-use Piwik\PluginsArchiver;
+use Piwik\DataTable;
+use Piwik\Metrics;
 
 require_once PIWIK_INCLUDE_PATH . '/plugins/UserSettings/functions.php';
 
@@ -25,7 +22,7 @@ require_once PIWIK_INCLUDE_PATH . '/plugins/UserSettings/functions.php';
  *
  * @see PluginsArchiver
  */
-class Archiver extends PluginsArchiver
+class Archiver extends \Piwik\Plugin\Archiver
 {
     const LANGUAGE_RECORD_NAME = 'UserSettings_language';
     const PLUGIN_RECORD_NAME = 'UserSettings_plugin';
@@ -42,7 +39,12 @@ class Archiver extends PluginsArchiver
     const OS_DIMENSION = "log_visit.config_os";
     const CONFIGURATION_DIMENSION = "CONCAT(log_visit.config_os, ';', log_visit.config_browser_name, ';', log_visit.config_resolution)";
 
-    public function archiveDay()
+    /**
+     * Daily archive of User Settings report. Processes reports for Visits by Resolution,
+     * by Browser, Browser family, etc. Some reports are built from the logs, some reports
+     * are superset of an existing report (eg. Browser family is built from the Browser report)
+     */
+    public function aggregateDayReport()
     {
         $this->aggregateByConfiguration();
         $this->aggregateByOs();
@@ -52,18 +54,34 @@ class Archiver extends PluginsArchiver
         $this->aggregateByLanguage();
     }
 
+    /**
+     * Period archiving: simply sums up daily archives
+     */
+    public function aggregateMultipleReports()
+    {
+        $dataTableRecords = array(
+            self::CONFIGURATION_RECORD_NAME,
+            self::OS_RECORD_NAME,
+            self::BROWSER_RECORD_NAME,
+            self::BROWSER_TYPE_RECORD_NAME,
+            self::RESOLUTION_RECORD_NAME,
+            self::SCREEN_TYPE_RECORD_NAME,
+            self::PLUGIN_RECORD_NAME,
+            self::LANGUAGE_RECORD_NAME,
+        );
+        $this->getProcessor()->aggregateDataTableRecords($dataTableRecords, $this->maximumRows);
+    }
+
     protected function aggregateByConfiguration()
     {
-        $metrics = $this->getProcessor()->getMetricsForDimension(self::CONFIGURATION_DIMENSION);
-        $table = $this->getProcessor()->getDataTableFromDataArray($metrics);
-        $this->insertTable(self::CONFIGURATION_RECORD_NAME, $table);
+        $metrics = $this->getLogAggregator()->getMetricsFromVisitByDimension(self::CONFIGURATION_DIMENSION)->asDataTable();
+        $this->insertTable(self::CONFIGURATION_RECORD_NAME, $metrics);
     }
 
     protected function aggregateByOs()
     {
-        $metrics = $this->getProcessor()->getMetricsForDimension(self::OS_DIMENSION);
-        $table = $this->getProcessor()->getDataTableFromDataArray($metrics);
-        $this->insertTable(self::OS_RECORD_NAME, $table);
+        $metrics = $this->getLogAggregator()->getMetricsFromVisitByDimension(self::OS_DIMENSION)->asDataTable();
+        $this->insertTable(self::OS_RECORD_NAME, $metrics);
     }
 
     protected function aggregateByBrowser()
@@ -74,8 +92,7 @@ class Archiver extends PluginsArchiver
 
     protected function aggregateByBrowserVersion()
     {
-        $metrics = $this->getProcessor()->getMetricsForDimension(self::BROWSER_VERSION_DIMENSION);
-        $tableBrowser = $this->getProcessor()->getDataTableFromDataArray($metrics);
+        $tableBrowser = $this->getLogAggregator()->getMetricsFromVisitByDimension(self::BROWSER_VERSION_DIMENSION)->asDataTable();
         $this->insertTable(self::BROWSER_RECORD_NAME, $tableBrowser);
         return $tableBrowser;
     }
@@ -94,9 +111,10 @@ class Archiver extends PluginsArchiver
 
     protected function aggregateByResolution()
     {
-        $metrics = $this->getProcessor()->getMetricsForDimension(self::RESOLUTION_DIMENSION);
-        $table = $this->getProcessor()->getDataTableFromDataArray($metrics);
-        $table->filter('ColumnCallbackDeleteRow', array('label', __NAMESPACE__ . '\keepStrlenGreater'));
+        $table = $this->getLogAggregator()->getMetricsFromVisitByDimension(self::RESOLUTION_DIMENSION)->asDataTable();
+        $table->filter('ColumnCallbackDeleteRow', array('label', function ($value) {
+            return strlen($value) <= 5;
+        }));
         $this->insertTable(self::RESOLUTION_RECORD_NAME, $table);
         return $table;
     }
@@ -139,28 +157,15 @@ class Archiver extends PluginsArchiver
             $metricsByLanguage->sumMetricsVisits($code, $row);
         }
 
-        $tableLanguage = $this->getProcessor()->getDataTableFromDataArray($metricsByLanguage);
-        $this->insertTable(self::LANGUAGE_RECORD_NAME, $tableLanguage);
+        $report = $metricsByLanguage->asDataTable();
+        $this->insertTable(self::LANGUAGE_RECORD_NAME, $report);
     }
 
     protected function insertTable($recordName, DataTable $table)
     {
-        return $this->getProcessor()->insertBlobRecord($recordName, $table->getSerialized($this->maximumRows, null, Metrics::INDEX_NB_VISITS));
+        $report = $table->getSerialized($this->maximumRows, null, Metrics::INDEX_NB_VISITS);
+        return $this->getProcessor()->insertBlobRecord($recordName, $report);
     }
 
-    public function archivePeriod()
-    {
-        $dataTableToSum = array(
-            self::CONFIGURATION_RECORD_NAME,
-            self::OS_RECORD_NAME,
-            self::BROWSER_RECORD_NAME,
-            self::BROWSER_TYPE_RECORD_NAME,
-            self::RESOLUTION_RECORD_NAME,
-            self::SCREEN_TYPE_RECORD_NAME,
-            self::PLUGIN_RECORD_NAME,
-            self::LANGUAGE_RECORD_NAME,
-        );
-        $this->getProcessor()->aggregateDataTableReports($dataTableToSum, $this->maximumRows);
-    }
 }
 

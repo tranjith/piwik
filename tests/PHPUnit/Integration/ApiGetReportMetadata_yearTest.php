@@ -22,9 +22,6 @@ class Test_Piwik_Integration_ApiGetReportMetadata_Year extends IntegrationTestCa
                         'language' => 'fr');
         return array(
             array('API.getProcessedReport', $params),
-            // Removed as time consuming to fix after french translations were changed...
-            //array('API.getReportMetadata', $params),
-            //array('LanguagesManager.getTranslationsForLanguage', $params),
             array('LanguagesManager.getAvailableLanguageNames', $params),
             array('SitesManager.getJavascriptTag', $params)
         );
@@ -38,8 +35,6 @@ class Test_Piwik_Integration_ApiGetReportMetadata_Year extends IntegrationTestCa
     /**
      * @dataProvider getApiForTesting
      * @group        Integration
-     * @group        ApiGetReportMetadata
-     * @group        ApiGetReportMetadata_Year
      */
     public function testApi($api, $params)
     {

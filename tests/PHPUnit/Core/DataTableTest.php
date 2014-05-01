@@ -7,8 +7,8 @@
  */
 
 use Piwik\Common;
-use Piwik\DataTable;
 use Piwik\DataTable\Manager;
+use Piwik\DataTable;
 use Piwik\DataTable\Row;
 use Piwik\Timer;
 
@@ -16,7 +16,6 @@ class DataTableTest extends PHPUnit_Framework_TestCase
 {
     /**
      * @group Core
-     * @group DataTable
      */
     public function testApplyFilter()
     {
@@ -44,7 +43,6 @@ class DataTableTest extends PHPUnit_Framework_TestCase
 
     /**
      * @group Core
-     * @group DataTable
      */
     public function testRenameColumn()
     {
@@ -57,7 +55,6 @@ class DataTableTest extends PHPUnit_Framework_TestCase
 
     /**
      * @group Core
-     * @group DataTable
      */
     public function testDeleteColumn()
     {
@@ -69,7 +66,6 @@ class DataTableTest extends PHPUnit_Framework_TestCase
 
     /**
      * @group Core
-     * @group DataTable
      */
     public function testDeleteRow()
     {
@@ -90,7 +86,6 @@ class DataTableTest extends PHPUnit_Framework_TestCase
 
     /**
      * @group Core
-     * @group DataTable
      */
     public function testGetLastRow()
     {
@@ -105,7 +100,6 @@ class DataTableTest extends PHPUnit_Framework_TestCase
 
     /**
      * @group Core
-     * @group DataTable
      */
     public function testGetRowFromIdSubDataTable()
     {
@@ -128,7 +122,6 @@ class DataTableTest extends PHPUnit_Framework_TestCase
      * on a Simple array (1 level only)
      *
      * @group Core
-     * @group DataTable
      */
     public function testCountRowsSimple()
     {
@@ -159,7 +152,6 @@ class DataTableTest extends PHPUnit_Framework_TestCase
      *         + the number of rows in the parent table
      *
      * @group Core
-     * @group DataTable
      */
     public function testCountRowsComplex()
     {
@@ -221,7 +213,6 @@ class DataTableTest extends PHPUnit_Framework_TestCase
      * Simple test of the DataTable_Row
      *
      * @group Core
-     * @group DataTable
      */
     public function testRow()
     {
@@ -247,7 +238,6 @@ class DataTableTest extends PHPUnit_Framework_TestCase
      * Simple test of the DataTable_Row
      *
      * @group Core
-     * @group DataTable
      */
     public function testSumRow()
     {
@@ -302,11 +292,15 @@ class DataTableTest extends PHPUnit_Framework_TestCase
         $this->assertTrue(Row::isEqual($rowWanted, $finalRow));
     }
 
+    /**
+     * @group Core
+     */
     public function test_unserializeWorks_WhenDataTableFormatPriorPiwik2()
     {
         $serializedDatatable = '';
         // Prior Piwik 2.0, we didn't use namespaces. Some
         require PIWIK_INCLUDE_PATH . "/tests/resources/pre-Piwik2-DataTable-archived.php";
+        require_once PIWIK_INCLUDE_PATH . "/core/DataTable/Bridges.php";
 
         $this->assertTrue(strlen($serializedDatatable) > 1000);
 
@@ -318,7 +312,7 @@ class DataTableTest extends PHPUnit_Framework_TestCase
      * Test that adding two string column values results in an exception.
      *
      * @group Core
-     * @group DataTable
+     * 
      * @expectedException Exception
      */
     public function testSumRow_stringException()
@@ -342,7 +336,7 @@ class DataTableTest extends PHPUnit_Framework_TestCase
      * After 100 recursion must throw an exception
      *
      * @group Core
-     * @group DataTable
+     * 
      * @expectedException Exception
      */
     public function testSerializeWithInfiniteRecursion()
@@ -359,7 +353,6 @@ class DataTableTest extends PHPUnit_Framework_TestCase
      * Test queing filters
      *
      * @group Core
-     * @group DataTable
      */
     public function testFilterQueueSortString()
     {
@@ -417,7 +410,6 @@ class DataTableTest extends PHPUnit_Framework_TestCase
      * Then we serialize everything, and we check that the unserialize give the same object back
      *
      * @group Core
-     * @group DataTable
      */
     public function testGeneral()
     {
@@ -535,6 +527,8 @@ class DataTableTest extends PHPUnit_Framework_TestCase
         $subsubtableAfter = new DataTable;
         $subsubtableAfter->addRowsFromSerializedArray($serialized[$idsubsubtable]);
         $this->assertEquals($subsubtable->getRows(), $subsubtableAfter->getRows());
+        $this->assertEquals($subsubtable->getRows(), DataTable::fromSerializedArray($serialized[$idsubsubtable])->getRows());
+        $this->assertTrue($subsubtable->getRowsCount() > 0);
 
         $this->assertEquals($table, Manager::getInstance()->getTable($idtable));
         $this->assertEquals($subsubtable, Manager::getInstance()->getTable($idsubsubtable));
@@ -553,7 +547,6 @@ class DataTableTest extends PHPUnit_Framework_TestCase
      * add an empty datatable to a normal datatable
      *
      * @group Core
-     * @group DataTable
      */
     public function testAddSimpleNoRowTable2()
     {
@@ -568,7 +561,6 @@ class DataTableTest extends PHPUnit_Framework_TestCase
      * add a normal datatable to an empty datatable
      *
      * @group Core
-     * @group DataTable
      */
     public function testAddSimpleNoRowTable1()
     {
@@ -582,7 +574,6 @@ class DataTableTest extends PHPUnit_Framework_TestCase
      * add to the datatable another datatable// they don't have any row in common
      *
      * @group Core
-     * @group DataTable
      */
     public function testAddSimpleNoCommonRow()
     {
@@ -602,7 +593,6 @@ class DataTableTest extends PHPUnit_Framework_TestCase
      * add 2 datatable with some common rows
      *
      * @group Core
-     * @group DataTable
      */
     public function testAddSimpleSomeCommonRow()
     {
@@ -647,7 +637,6 @@ class DataTableTest extends PHPUnit_Framework_TestCase
      * add 2 datatable with only common rows
      *
      * @group Core
-     * @group DataTable
      */
     public function testAddSimpleAllCommonRow()
     {
@@ -689,7 +678,6 @@ class DataTableTest extends PHPUnit_Framework_TestCase
      * test add 2 different tables to the same table
      *
      * @group Core
-     * @group DataTable
      */
     public function testAddDataTable2times()
     {
@@ -744,7 +732,6 @@ class DataTableTest extends PHPUnit_Framework_TestCase
 
     /**
      * @group Core
-     * @group DataTable
      */
     public function testUnrelatedDataTableNotDestructed()
     {
@@ -764,7 +751,6 @@ class DataTableTest extends PHPUnit_Framework_TestCase
 
     /**
      * @group Core
-     * @group DataTable
      */
     public function testGetSerializedCallsCleanPostSerialize()
     {
@@ -779,7 +765,6 @@ class DataTableTest extends PHPUnit_Framework_TestCase
 
     /**
      * @group Core
-     * @group DataTable
      */
     public function testSubDataTableIsDestructed()
     {
@@ -790,6 +775,53 @@ class DataTableTest extends PHPUnit_Framework_TestCase
         $rowBeingDestructed->setSubtable($mockedDataTable);
 
         Common::destroy($rowBeingDestructed);
+    }
+
+    /**
+     * @group Core
+     */
+    public function test_serializeFails_onSubTableNotFound()
+    {
+        // create a simple table with a subtable
+        $table1 = $this->_getDataTable1ForTest();
+        $table2 = $this->_getDataTable2ForTest();
+        $table2->getFirstRow()->addSubtable($table1);
+        $idSubtable = $table1->getId();
+
+
+        /* Check it looks good:
+        $renderer = DataTable\Renderer::factory('xml');
+        $renderer->setTable($table2);
+        $renderer->setRenderSubTables(true);
+        echo $renderer->render();
+        */
+
+        // test serialize:
+        // - subtable is serialized as expected
+        $serializedStrings = $table2->getSerialized();
+
+        // both the main table and the sub table are serialized
+        $this->assertEquals(sizeof($serializedStrings), 2);
+        $serialized = implode(",", $serializedStrings);
+
+        // the serialized string references the id subtable
+        $this->assertTrue( false !== strpos($serialized, 'i:' . $idSubtable), "not found the id sub table in the serialized, not expected");
+
+        // KABOOM, we delete the subtable, reproducing a "random data issue"
+        Manager::getInstance()->deleteTable($idSubtable);
+
+        // Now we will serialize this "broken datatable" and check it works.
+
+        // - it does not throw an exception
+        $serializedStrings = $table2->getSerialized();
+
+        // - the serialized table does NOT contain the sub table
+        $this->assertEquals(sizeof($serializedStrings), 1); // main table only is serialized
+        $serialized = implode(",", $serializedStrings);
+
+        // - the serialized string does NOT contain the id subtable (the row was cleaned up as expected)
+        $this->assertTrue( false === strpos($serialized, 'i:' . $idSubtable), "found the id sub table in the serialized, not expected");
+
     }
 
     protected function _getDataTable1ForTest()

@@ -5,20 +5,15 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Piwik
  */
 namespace Piwik\DataTable\Renderer;
 
-use Piwik\DataTable;
 use Piwik\DataTable\Manager;
+use Piwik\DataTable;
 use Piwik\DataTable\Renderer;
 
 /**
  * Simple output
- *
- * @package Piwik
- * @subpackage Piwik_DataTable_Renderer_ConsoleDataTable
  */
 class Console extends Renderer
 {
@@ -55,7 +50,7 @@ class Console extends Renderer
     /**
      * Sets the prefix to be used
      *
-     * @param string $str  new prefix
+     * @param string $str new prefix
      */
     public function setPrefixRow($str)
     {
@@ -65,15 +60,15 @@ class Console extends Renderer
     /**
      * Computes the output of the given array of data tables
      *
-     * @param DataTable\Map $tableArray  data tables to render
-     * @param string $prefix      prefix to output before table data
+     * @param DataTable\Map $map data tables to render
+     * @param string $prefix prefix to output before table data
      * @return string
      */
-    protected function renderDataTableArray(DataTable\Map $tableArray, $prefix)
+    protected function renderDataTableMap(DataTable\Map $map, $prefix)
     {
         $output = "Set<hr />";
         $prefix = $prefix . '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;';
-        foreach ($tableArray->getArray() as $descTable => $table) {
+        foreach ($map->getDataTables() as $descTable => $table) {
             $output .= $prefix . "<b>" . $descTable . "</b><br />";
             $output .= $prefix . $this->renderTable($table, $prefix . '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;');
             $output .= "<hr />";
@@ -84,8 +79,8 @@ class Console extends Renderer
     /**
      * Computes the given dataTable output and returns the string/binary
      *
-     * @param DataTable $table   data table to render
-     * @param string $prefix  prefix to output before table data
+     * @param DataTable $table data table to render
+     * @param string $prefix prefix to output before table data
      * @return string
      */
     protected function renderTable($table, $prefix = "")
@@ -96,7 +91,7 @@ class Console extends Renderer
         }
 
         if ($table instanceof DataTable\Map) {
-            return $this->renderDataTableArray($table, $prefix);
+            return $this->renderDataTableMap($table, $prefix);
         }
 
         if ($table->getRowsCount() == 0) {
@@ -107,12 +102,12 @@ class Console extends Renderer
         $output = '';
         $i = 1;
         foreach ($table->getRows() as $row) {
-            $dataTableArrayBreak = false;
+            $dataTableMapBreak = false;
             $columns = array();
             foreach ($row->getColumns() as $column => $value) {
                 if ($value instanceof DataTable\Map) {
-                    $output .= $this->renderDataTableArray($value, $prefix);
-                    $dataTableArrayBreak = true;
+                    $output .= $this->renderDataTableMap($value, $prefix);
+                    $dataTableMapBreak = true;
                     break;
                 }
                 if (is_string($value)) $value = "'$value'";
@@ -120,7 +115,7 @@ class Console extends Renderer
 
                 $columns[] = "'$column' => $value";
             }
-            if ($dataTableArrayBreak === true) {
+            if ($dataTableMapBreak === true) {
                 continue;
             }
             $columns = implode(", ", $columns);
@@ -154,13 +149,16 @@ class Console extends Renderer
             $i++;
         }
 
-        if (!empty($table->metadata)) {
+        $metadata = $table->getAllTableMetadata();
+        if (!empty($metadata)) {
             $output .= "<hr />Metadata<br />";
-            foreach ($table->metadata as $id => $metadata) {
+            foreach ($metadata as $id => $metadataIn) {
                 $output .= "<br />";
                 $output .= $prefix . " <b>$id</b><br />";
-                foreach ($metadata as $name => $value) {
-                    $output .= $prefix . $prefix . "$name => $value";
+                if(is_array($metadataIn)) {
+                    foreach ($metadataIn as $name => $value) {
+                        $output .= $prefix . $prefix . "$name => $value";
+                    }
                 }
             }
         }

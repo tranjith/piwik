@@ -5,14 +5,11 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Piwik
  */
 
 namespace Piwik\Archive;
 
 use Exception;
-use Piwik\Archive\DataTableFactory;
 use Piwik\DataTable;
 
 /**
@@ -284,7 +281,7 @@ class DataCollection
      * Creates an empty index using a list of metadata names. If the 'site' and/or
      * 'period' metadata names are supplied, empty rows are added for every site/period
      * that was queried for.
-     * 
+     *
      * Using this function ensures consistent ordering in the indexed result.
      *
      * @param array $metadataNamesToIndexBy List of metadata names to index archive data by.
@@ -297,9 +294,9 @@ class DataCollection
         if (!empty($metadataNamesToIndexBy)) {
             $metadataName = array_shift($metadataNamesToIndexBy);
 
-            if ($metadataName == 'site') {
+            if ($metadataName == DataTableFactory::TABLE_METADATA_SITE_INDEX) {
                 $indexKeyValues = array_values($this->sitesId);
-            } else if ($metadataName == 'period') {
+            } else if ($metadataName == DataTableFactory::TABLE_METADATA_PERIOD_INDEX) {
                 $indexKeyValues = array_keys($this->periods);
             }
 
@@ -316,12 +313,12 @@ class DataCollection
      */
     private function putRowInIndex(&$index, $metadataNamesToIndexBy, $row, $idSite, $period)
     {
-        $currentLevel = &$index;
+        $currentLevel = & $index;
 
         foreach ($metadataNamesToIndexBy as $metadataName) {
-            if ($metadataName == 'site') {
+            if ($metadataName == DataTableFactory::TABLE_METADATA_SITE_INDEX) {
                 $key = $idSite;
-            } else if ($metadataName == 'period') {
+            } else if ($metadataName == DataTableFactory::TABLE_METADATA_PERIOD_INDEX) {
                 $key = $period;
             } else {
                 $key = $row[self::METADATA_CONTAINER_ROW_KEY][$metadataName];
@@ -331,7 +328,7 @@ class DataCollection
                 $currentLevel[$key] = array();
             }
 
-            $currentLevel = &$currentLevel[$key];
+            $currentLevel = & $currentLevel[$key];
         }
 
         $currentLevel = $row;

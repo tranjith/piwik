@@ -5,8 +5,6 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Piwik
  */
 
 namespace Piwik\DataTable;
@@ -14,32 +12,17 @@ namespace Piwik\DataTable;
 use Exception;
 use Piwik\Common;
 use Piwik\DataTable;
+use Piwik\Singleton;
 
 /**
  * The DataTable_Manager registers all the instanciated DataTable and provides an
  * easy way to access them. This is used to store all the DataTable during the archiving process.
  * At the end of archiving, the ArchiveProcessor will read the stored datatable and record them in the DB.
  *
- * @package Piwik
- * @subpackage DataTable
+ * @method static \Piwik\DataTable\Manager getInstance()
  */
-class Manager
+class Manager extends Singleton
 {
-    static private $instance = null;
-
-    /**
-     * Returns instance
-     *
-     * @return \Piwik\DataTable\Manager
-     */
-    static public function getInstance()
-    {
-        if (self::$instance == null) {
-            self::$instance = new self;
-        }
-        return self::$instance;
-    }
-
     /**
      * Array used to store the DataTable
      *
@@ -78,7 +61,7 @@ class Manager
     public function getTable($idTable)
     {
         if (!isset($this->tables[$idTable])) {
-            throw new Exception(sprintf("This report has been reprocessed since your last click. To see this error less often, please increase the timeout value in seconds in Settings > General Settings. (error: id %s not found).", $idTable));
+            throw new TableNotFoundException(sprintf("This report has been reprocessed since your last click. To see this error less often, please increase the timeout value in seconds in Settings > General Settings. (error: id %s not found).", $idTable));
         }
         return $this->tables[$idTable];
     }
@@ -120,6 +103,24 @@ class Manager
         if (isset($this->tables[$id])) {
             Common::destroy($this->tables[$id]);
             $this->setTableDeleted($id);
+        }
+    }
+
+    /**
+     * Deletes all tables starting from the $firstTableId to the most recent table id except the ones that are
+     * supposed to be ignored.
+     *
+     * @param int[] $idsToBeIgnored
+     * @param int $firstTableId
+     */
+    public function deleteTablesExceptIgnored($idsToBeIgnored, $firstTableId = 0)
+    {
+        $lastTableId = $this->getMostRecentTableId();
+
+        for ($index = $firstTableId; $index <= $lastTableId; $index++) {
+            if (!in_array($index, $idsToBeIgnored)) {
+                $this->deleteTable($index);
+            }
         }
     }
 

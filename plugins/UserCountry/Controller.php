@@ -5,33 +5,27 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik_Plugins
- * @package UserCountry
  */
 namespace Piwik\Plugins\UserCountry;
 
 use Exception;
-use Piwik\DataTable\Renderer\Json;
-use Piwik\Controller\Admin;
-use Piwik\Piwik;
 use Piwik\Common;
+use Piwik\DataTable\Renderer\Json;
 use Piwik\Http;
 use Piwik\IP;
-use Piwik\Plugins\UserCountry\LocationProvider;
-use Piwik\Plugins\UserCountry\GeoIPAutoUpdater;
-use Piwik\ViewDataTable;
-use Piwik\View;
-use Piwik\Url;
+use Piwik\Piwik;
 use Piwik\Plugins\UserCountry\LocationProvider\DefaultProvider;
-use Piwik\Plugins\UserCountry\LocationProvider\GeoIp;
 use Piwik\Plugins\UserCountry\LocationProvider\GeoIp\Pecl;
+use Piwik\Plugins\UserCountry\LocationProvider;
+use Piwik\Plugins\UserCountry\LocationProvider\GeoIp;
 use Piwik\Plugins\UserCountry\LocationProvider\GeoIp\ServerBased;
+use Piwik\View;
+use Piwik\ViewDataTable\Factory;
 
 /**
  *
- * @package UserCountry
  */
-class Controller extends Admin
+class Controller extends \Piwik\Plugin\ControllerAdmin
 {
     public function index()
     {
@@ -45,16 +39,16 @@ class Controller extends Admin
         $view->dataTableRegion = $this->getRegion(true);
         $view->dataTableCity = $this->getCity(true);
 
-        echo $view->render();
+        return $view->render();
     }
 
     public function adminIndex()
     {
-        Piwik::checkUserIsSuperUser();
+        $this->dieIfGeolocationAdminIsDisabled();
+        Piwik::checkUserHasSuperUserAccess();
         $view = new View('@UserCountry/adminIndex');
 
-        $allProviderInfo = LocationProvider::getAllProviderInfo(
-            $newline = '<br/>', $includeExtra = true);
+        $allProviderInfo = LocationProvider::getAllProviderInfo($newline = '<br/>', $includeExtra = true);
         $view->locationProviders = $allProviderInfo;
         $view->currentProviderId = LocationProvider::getCurrentProviderId();
         $view->thisIP = IP::getIpFromHeader();
@@ -89,7 +83,7 @@ class Controller extends Admin
         $this->setBasicVariablesView($view);
         $this->setBasicVariablesAdminView($view);
 
-        echo $view->render();
+        return $view->render();
     }
 
     /**
@@ -111,7 +105,8 @@ class Controller extends Admin
      */
     public function downloadFreeGeoIPDB()
     {
-        Piwik::checkUserIsSuperUser();
+        $this->dieIfGeolocationAdminIsDisabled();
+        Piwik::checkUserHasSuperUserAccess();
         if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $this->checkTokenInUrl();
             Json::sendHeaderJSON();
@@ -137,9 +132,9 @@ class Controller extends Admin
                     $result['next_screen'] = $this->getGeoIpUpdaterManageScreen();
                 }
 
-                echo Common::json_encode($result);
+                return Common::json_encode($result);
             } catch (Exception $ex) {
-                echo Common::json_encode(array('error' => $ex->getMessage()));
+                return Common::json_encode(array('error' => $ex->getMessage()));
             }
         }
     }
@@ -177,6 +172,8 @@ class Controller extends Admin
         if ($lastRunTime !== false) {
             $view->lastTimeUpdaterRun = '<strong><em>' . $lastRunTime->toString() . '</em></strong>';
         }
+
+        $view->nextRunTime = GeoIPAutoUpdater::getNextRunTime();
     }
 
     /**
@@ -194,7 +191,8 @@ class Controller extends Admin
      */
     public function updateGeoIPLinks()
     {
-        Piwik::checkUserIsSuperUser();
+        $this->dieIfGeolocationAdminIsDisabled();
+        Piwik::checkUserHasSuperUserAccess();
         if ($_SERVER["REQUEST_METHOD"] == "POST") {
             Json::sendHeaderJSON();
             try {
@@ -206,13 +204,15 @@ class Controller extends Admin
                 // the browser so it can download it next
                 $info = $this->getNextMissingDbUrlInfo();
                 if ($info !== false) {
-                    echo Common::json_encode($info);
-                    return;
+                    return Common::json_encode($info);
                 } else {
-                    echo 1;
+                    $view = new View("@UserCountry/_updaterNextRunTime");
+                    $view->nextRunTime = GeoIPAutoUpdater::getNextRunTime();
+                    $nextRunTimeHtml = $view->render();
+                    return Common::json_encode(array('nextRunTime' => $nextRunTimeHtml));
                 }
             } catch (Exception $ex) {
-                echo Common::json_encode(array('error' => $ex->getMessage()));
+                return Common::json_encode(array('error' => $ex->getMessage()));
             }
         }
     }
@@ -236,7 +236,8 @@ class Controller extends Admin
      */
     public function downloadMissingGeoIpDb()
     {
-        Piwik::checkUserIsSuperUser();
+        $this->dieIfGeolocationAdminIsDisabled();
+        Piwik::checkUserHasSuperUserAccess();
         if ($_SERVER["REQUEST_METHOD"] == "POST") {
             try {
                 $this->checkTokenInUrl();
@@ -266,14 +267,13 @@ class Controller extends Admin
 
                     $info = $this->getNextMissingDbUrlInfo();
                     if ($info !== false) {
-                        echo Common::json_encode($info);
-                        return;
+                        return Common::json_encode($info);
                     }
                 }
 
-                echo Common::json_encode($result);
+                return Common::json_encode($result);
             } catch (Exception $ex) {
-                echo Common::json_encode(array('error' => $ex->getMessage()));
+                return Common::json_encode(array('error' => $ex->getMessage()));
             }
         }
     }
@@ -289,7 +289,8 @@ class Controller extends Admin
      */
     public function setCurrentLocationProvider()
     {
-        Piwik::checkUserIsSuperUser();
+        $this->dieIfGeolocationAdminIsDisabled();
+        Piwik::checkUserHasSuperUserAccess();
         if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $this->checkTokenInUrl();
 
@@ -298,7 +299,7 @@ class Controller extends Admin
             if ($provider === false) {
                 throw new Exception("Invalid provider ID: '$providerId'.");
             }
-            echo 1;
+            return 1;
         }
     }
 
@@ -325,51 +326,49 @@ class Controller extends Admin
         $location = LocationProvider::prettyFormatLocation(
             $location, $newline = '<br/>', $includeExtra = true);
 
-        echo $location;
+        return $location;
     }
 
-    public function getCountry($fetch = false)
+    public function getCountry()
     {
-        return ViewDataTable::renderReport($this->pluginName, __FUNCTION__, $fetch);
+        return $this->renderReport(__FUNCTION__);
     }
 
-    public function getContinent($fetch = false)
+    public function getContinent()
     {
-        return ViewDataTable::renderReport($this->pluginName, __FUNCTION__, $fetch);
+        return $this->renderReport(__FUNCTION__);
     }
 
     /**
      * Echo's or returns an HTML view of the visits by region report.
      *
-     * @param bool $fetch If true, returns the HTML as a string, otherwise it is echo'd.
      * @return string
      */
-    public function getRegion($fetch = false)
+    public function getRegion()
     {
-        return ViewDataTable::renderReport($this->pluginName, __FUNCTION__, $fetch);
+        return $this->renderReport(__FUNCTION__);
     }
 
     /**
      * Echo's or returns an HTML view of the visits by city report.
      *
-     * @param bool $fetch If true, returns the HTML as a string, otherwise it is echo'd.
      * @return string
      */
-    public function getCity($fetch = false)
+    public function getCity()
     {
-        return ViewDataTable::renderReport($this->pluginName, __FUNCTION__, $fetch);
+        return $this->renderReport(__FUNCTION__);
     }
 
-    public function getNumberOfDistinctCountries($fetch = false)
+    public function getNumberOfDistinctCountries()
     {
         return $this->getNumericValue('UserCountry.getNumberOfDistinctCountries');
     }
 
-    public function getLastDistinctCountriesGraph($fetch = false)
+    public function getLastDistinctCountriesGraph()
     {
         $view = $this->getLastUnitGraph('UserCountry', __FUNCTION__, "UserCountry.getNumberOfDistinctCountries");
-        $view->columns_to_display = array('UserCountry_distinctCountries');
-        return $this->renderView($view, $fetch);
+        $view->config->columns_to_display = array('UserCountry_distinctCountries');
+        return $this->renderView($view);
     }
 
     /**
@@ -389,9 +388,16 @@ class Controller extends Admin
 
             return array(
                 'to_download'       => $missingDbKey,
-                'to_download_label' => Piwik_Translate('UserCountry_DownloadingDb', $link) . '...',
+                'to_download_label' => Piwik::translate('UserCountry_DownloadingDb', $link) . '...',
             );
         }
         return false;
+    }
+
+    private function dieIfGeolocationAdminIsDisabled()
+    {
+        if(!UserCountry::isGeoLocationAdminEnabled()) {
+            throw new \Exception('Geo location setting page has been disabled.');
+        }
     }
 }

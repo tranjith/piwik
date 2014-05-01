@@ -5,24 +5,24 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Updates
  */
+
+namespace Piwik\Updates;
+
 use Piwik\Common;
 use Piwik\DbHelper;
 use Piwik\Updater;
 use Piwik\Updates;
 
 /**
- * @package Updates
  */
-class Piwik_Updates_0_2_27 extends Updates
+class Updates_0_2_27 extends Updates
 {
-    static function getSql($schema = 'Myisam')
+    static function getSql()
     {
         $sqlarray = array(
             'ALTER TABLE `' . Common::prefixTable('log_visit') . '`
-				ADD `visit_goal_converted` VARCHAR( 1 ) NOT NULL AFTER `visit_total_time`'                                                                              => false,
+				ADD `visit_goal_converted` VARCHAR( 1 ) NOT NULL AFTER `visit_total_time`'                                                                        => false,
             // 0.2.27 [826]
             'ALTER IGNORE TABLE `' . Common::prefixTable('log_visit') . '`
 				CHANGE `visit_goal_converted` `visit_goal_converted` TINYINT(1) NOT NULL' => false,

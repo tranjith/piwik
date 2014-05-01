@@ -5,73 +5,153 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik_Plugins
- * @package PrivacyManager
  */
 namespace Piwik\Plugins\PrivacyManager;
 
 use Exception;
-use Piwik\Config;
-use Piwik\Metrics;
-use Piwik\Piwik;
 use Piwik\Common;
+use Piwik\Config as PiwikConfig;
+use Piwik\DataTable\DataTableInterface;
 use Piwik\Date;
-use Piwik\Plugins\Goals\Archiver;
-use Piwik\Plugins\PrivacyManager\LogDataPurger;
-use Piwik\ScheduledTask;
 use Piwik\Db;
-use Piwik\ScheduledTime\Daily;
+use Piwik\Menu\MenuAdmin;
+use Piwik\Metrics;
+use Piwik\Option;
+use Piwik\Period\Range;
+use Piwik\Period;
+use Piwik\Piwik;
+use Piwik\Plugins\Goals\Archiver;
+use Piwik\ScheduledTask;
+use Piwik\ScheduledTime;
+use Piwik\Site;
 use Piwik\Tracker\GoalManager;
-use Piwik\Plugins\PrivacyManager\ReportsPurger;
 
-/**
- * @see plugins/PrivacyManager/LogDataPurger.php
- */
+
 require_once PIWIK_INCLUDE_PATH . '/plugins/PrivacyManager/LogDataPurger.php';
-
-/**
- * @see plugins/PrivacyManager/ReportsPurger.php
- */
 require_once PIWIK_INCLUDE_PATH . '/plugins/PrivacyManager/ReportsPurger.php';
 
 /**
- *
- * @package PrivacyManager
+ * Specifically include this for Tracker API (which does not use autoloader)
+ */
+require_once PIWIK_INCLUDE_PATH . '/plugins/PrivacyManager/DoNotTrackHeaderChecker.php';
+require_once PIWIK_INCLUDE_PATH . '/plugins/PrivacyManager/IPAnonymizer.php';
+
+/**
  */
 class PrivacyManager extends \Piwik\Plugin
 {
     const OPTION_LAST_DELETE_PIWIK_LOGS = "lastDelete_piwik_logs";
     const OPTION_LAST_DELETE_PIWIK_REPORTS = 'lastDelete_piwik_reports';
     const OPTION_LAST_DELETE_PIWIK_LOGS_INITIAL = "lastDelete_piwik_logs_initial";
-    const DEFAULT_MAX_ROWS_PER_QUERY = 100000;
 
-    // default config options for data purging feature
-    public static $defaultPurgeDataOptions = array(
-        'delete_logs_enable'                   => 0,
-        'delete_logs_schedule_lowest_interval' => 7,
-        'delete_logs_older_than'               => 180,
-        'delete_logs_max_rows_per_query'       => self::DEFAULT_MAX_ROWS_PER_QUERY,
-        'delete_reports_enable'                => 0,
-        'delete_reports_older_than'            => 12,
-        'delete_reports_keep_basic_metrics'    => 1,
-        'delete_reports_keep_day_reports'      => 0,
-        'delete_reports_keep_week_reports'     => 0,
-        'delete_reports_keep_month_reports'    => 1,
-        'delete_reports_keep_year_reports'     => 1,
-        'delete_reports_keep_range_reports'    => 0,
-        'delete_reports_keep_segment_reports'  => 0,
+    // options for data purging feature array[configName => configSection]
+    public static $purgeDataOptions = array(
+        'delete_logs_enable'                   => 'Deletelogs',
+        'delete_logs_schedule_lowest_interval' => 'Deletelogs',
+        'delete_logs_older_than'               => 'Deletelogs',
+        'delete_logs_max_rows_per_query'       => 'Deletelogs',
+        'enable_auto_database_size_estimate'   => 'Deletelogs',
+        'delete_reports_enable'                => 'Deletereports',
+        'delete_reports_older_than'            => 'Deletereports',
+        'delete_reports_keep_basic_metrics'    => 'Deletereports',
+        'delete_reports_keep_day_reports'      => 'Deletereports',
+        'delete_reports_keep_week_reports'     => 'Deletereports',
+        'delete_reports_keep_month_reports'    => 'Deletereports',
+        'delete_reports_keep_year_reports'     => 'Deletereports',
+        'delete_reports_keep_range_reports'    => 'Deletereports',
+        'delete_reports_keep_segment_reports'  => 'Deletereports',
     );
 
+    private $dntChecker = null;
+    private $ipAnonymizer = null;
+
     /**
-     * @see Piwik_Plugin::getListHooksRegistered
+     * Constructor.
+     */
+    public function __construct()
+    {
+        parent::__construct();
+
+        $this->dntChecker = new DoNotTrackHeaderChecker();
+        $this->ipAnonymizer = new IPAnonymizer();
+    }
+
+    /**
+     * Returns true if it is likely that the data for this report has been purged and if the
+     * user should be told about that.
+     *
+     * In order for this function to return true, the following must also be true:
+     * - The data table for this report must either be empty or not have been fetched.
+     * - The period of this report is not a multiple period.
+     * - The date of this report must be older than the delete_reports_older_than config option.
+     * @param  DataTableInterface $dataTable
+     * @return bool
+     */
+    public static function hasReportBeenPurged($dataTable)
+    {
+        $strPeriod = Common::getRequestVar('period', false);
+        $strDate   = Common::getRequestVar('date', false);
+
+        if (false !== $strPeriod
+            && false !== $strDate
+            && (is_null($dataTable)
+                || (!empty($dataTable) && $dataTable->getRowsCount() == 0))
+        ) {
+            // if range, only look at the first date
+            if ($strPeriod == 'range') {
+
+                $idSite = Common::getRequestVar('idSite', '');
+
+                if (intval($idSite) != 0) {
+                    $site     = new Site($idSite);
+                    $timezone = $site->getTimezone();
+                } else {
+                    $timezone = 'UTC';
+                }
+
+                $period     = new Range('range', $strDate, $timezone);
+                $reportDate = $period->getDateStart();
+
+            } elseif (Period::isMultiplePeriod($strDate, $strPeriod)) {
+
+                // if a multiple period, this function is irrelevant
+                return false;
+
+            }  else {
+                // otherwise, use the date as given
+                $reportDate = Date::factory($strDate);
+            }
+
+            $reportYear = $reportDate->toString('Y');
+            $reportMonth = $reportDate->toString('m');
+
+            if (static::shouldReportBePurged($reportYear, $reportMonth)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @see Piwik\Plugin::getListHooksRegistered
      */
     public function getListHooksRegistered()
     {
         return array(
-            'AssetManager.getJsFiles'         => 'getJsFiles',
-            'AdminMenu.add'                   => 'addMenu',
+            'AssetManager.getJavaScriptFiles' => 'getJsFiles',
+            'Menu.Admin.addItems'             => 'addMenu',
             'TaskScheduler.getScheduledTasks' => 'getScheduledTasks',
+            'Tracker.setTrackerCacheGeneral'  => 'setTrackerCacheGeneral',
+            'Tracker.isExcludedVisit'         => array($this->dntChecker, 'checkHeaderInTracker'),
+            'Tracker.setVisitorIp'            => array($this->ipAnonymizer, 'setVisitorIpAddress'),
         );
+    }
+
+    public function setTrackerCacheGeneral(&$cacheContent)
+    {
+        $config       = new Config();
+        $cacheContent = $config->setTrackerCacheGeneral($cacheContent);
     }
 
     public function getScheduledTasks(&$tasks)
@@ -80,12 +160,12 @@ class PrivacyManager extends \Piwik\Plugin
         // they will execute before the optimize tables task
 
         $purgeReportDataTask = new ScheduledTask(
-            $this, 'deleteReportData', null, new Daily(), ScheduledTask::LOW_PRIORITY
+            $this, 'deleteReportData', null, ScheduledTime::factory('daily'), ScheduledTask::LOW_PRIORITY
         );
         $tasks[] = $purgeReportDataTask;
 
         $purgeLogDataTask = new ScheduledTask(
-            $this, 'deleteLogData', null, new Daily(), ScheduledTask::LOW_PRIORITY
+            $this, 'deleteLogData', null, ScheduledTime::factory('daily'), ScheduledTask::LOW_PRIORITY
         );
         $tasks[] = $purgeLogDataTask;
     }
@@ -97,7 +177,7 @@ class PrivacyManager extends \Piwik\Plugin
 
     function addMenu()
     {
-        Piwik_AddAdminMenu('PrivacyManager_MenuPrivacySettings',
+        MenuAdmin::addEntry('PrivacyManager_MenuPrivacySettings',
             array('module' => 'PrivacyManager', 'action' => 'privacySettings'),
             Piwik::isUserHasSomeAdminAccess(),
             $order = 7);
@@ -113,37 +193,21 @@ class PrivacyManager extends \Piwik\Plugin
         $settings = array();
 
         // load settings from ini config
-        try {
-            $oldSettings = array(
-                'enable_auto_database_size_estimate',
+        $config = PiwikConfig::getInstance();
+        foreach (self::$purgeDataOptions as $configKey => $configSection) {
+            $values = $config->$configSection;
+            $settings[$configKey] = $values[$configKey];
+        }
 
-                // backwards compatibility: load old values in ini config if present
-                'delete_logs_enable',
-                'delete_logs_schedule_lowest_interval',
-                'delete_logs_older_than',
-            );
-
-            $deleteLogsSettings = Config::getInstance()->Deletelogs;
-            foreach ($oldSettings as $settingName) {
-                $settings[$settingName] = $deleteLogsSettings[$settingName];
-            }
-        } catch (Exception $e) {
-            // ignore
+        if (!Controller::isDataPurgeSettingsEnabled()) {
+            return $settings;
         }
 
         // load the settings for the data purging settings
-        foreach (self::$defaultPurgeDataOptions as $optionName => $defaultValue) {
-            $value = Piwik_GetOption($optionName);
+        foreach (self::$purgeDataOptions as $configName => $configSection) {
+            $value = Option::get($configName);
             if ($value !== false) {
-                $settings[$optionName] = $value;
-            } else {
-                // if the option hasn't been set/created, use the default value
-                if (!isset($settings[$optionName])) {
-                    $settings[$optionName] = $defaultValue;
-                }
-
-                // option is not saved in the DB, so save it now
-                Piwik_SetOption($optionName, $settings[$optionName]);
+                $settings[$configName] = $value;
             }
         }
 
@@ -157,11 +221,9 @@ class PrivacyManager extends \Piwik\Plugin
      */
     public static function savePurgeDataSettings($settings)
     {
-        $plugin = \Piwik\PluginsManager::getInstance()->getLoadedPlugin('PrivacyManager');
-
-        foreach (self::$defaultPurgeDataOptions as $optionName => $defaultValue) {
-            if (isset($settings[$optionName])) {
-                Piwik_SetOption($optionName, $settings[$optionName]);
+        foreach (self::$purgeDataOptions as $configName => $configSection) {
+            if (isset($settings[$configName])) {
+                Option::set($configName, $settings[$configName]);
             }
         }
     }
@@ -191,18 +253,19 @@ class PrivacyManager extends \Piwik\Plugin
 
         // Make sure, data deletion is enabled
         if ($settings['delete_reports_enable'] == 0) {
-            return;
+            return false;
         }
 
         // make sure purging should run at this time (unless this is a forced purge)
         if (!$this->shouldPurgeData($settings, self::OPTION_LAST_DELETE_PIWIK_REPORTS)) {
-            return;
+            return false;
         }
 
         // set last run time
-        Piwik_SetOption(self::OPTION_LAST_DELETE_PIWIK_REPORTS, Date::factory('today')->getTimestamp());
+        Option::set(self::OPTION_LAST_DELETE_PIWIK_REPORTS, Date::factory('today')->getTimestamp());
 
         ReportsPurger::make($settings, self::getAllMetricsToKeep())->purgeData();
+        return true;
     }
 
     /**
@@ -224,12 +287,12 @@ class PrivacyManager extends \Piwik\Plugin
 
         // Make sure, data deletion is enabled
         if ($settings['delete_logs_enable'] == 0) {
-            return;
+            return false;
         }
 
         // make sure purging should run at this time
         if (!$this->shouldPurgeData($settings, self::OPTION_LAST_DELETE_PIWIK_LOGS)) {
-            return;
+            return false;
         }
 
         /*
@@ -238,10 +301,12 @@ class PrivacyManager extends \Piwik\Plugin
          * every time, when the schedule is triggered.
          */
         $lastDeleteDate = Date::factory("today")->getTimestamp();
-        Piwik_SetOption(self::OPTION_LAST_DELETE_PIWIK_LOGS, $lastDeleteDate);
+        Option::set(self::OPTION_LAST_DELETE_PIWIK_LOGS, $lastDeleteDate);
 
         // execute the purge
         LogDataPurger::make($settings)->purgeData();
+
+        return true;
     }
 
     /**
@@ -371,14 +436,14 @@ class PrivacyManager extends \Piwik\Plugin
     {
         // Log deletion may not run until it is once rescheduled (initial run). This is the
         // only way to guarantee the calculated next scheduled deletion time.
-        $initialDelete = Piwik_GetOption(self::OPTION_LAST_DELETE_PIWIK_LOGS_INITIAL);
+        $initialDelete = Option::get(self::OPTION_LAST_DELETE_PIWIK_LOGS_INITIAL);
         if (empty($initialDelete)) {
-            Piwik_SetOption(self::OPTION_LAST_DELETE_PIWIK_LOGS_INITIAL, 1);
+            Option::set(self::OPTION_LAST_DELETE_PIWIK_LOGS_INITIAL, 1);
             return false;
         }
 
         // Make sure, log purging is allowed to run now
-        $lastDelete = Piwik_GetOption($lastRanOption);
+        $lastDelete = Option::get($lastRanOption);
         $deleteIntervalDays = $settings['delete_logs_schedule_lowest_interval'];
         $deleteIntervalSeconds = $this->getDeleteIntervalInSeconds($deleteIntervalDays);
 
@@ -402,4 +467,3 @@ class PrivacyManager extends \Piwik\Plugin
         return Db::fetchOne("SELECT MAX(idgoal) FROM " . Common::prefixTable('goal'));
     }
 }
-

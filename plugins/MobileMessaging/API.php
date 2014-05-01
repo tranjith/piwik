@@ -5,16 +5,13 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik_Plugins
- * @package MobileMessaging
  */
 namespace Piwik\Plugins\MobileMessaging;
 
-use Piwik\Piwik;
 use Piwik\Common;
-use Piwik\Plugins\MobileMessaging\MobileMessaging;
+use Piwik\Option;
+use Piwik\Piwik;
 use Piwik\Plugins\MobileMessaging\SMSProvider;
-use Piwik\Plugins\PDFReports\API as APIPDFReports;
 
 /**
  * The MobileMessaging API lets you manage and access all the MobileMessaging plugin features including :
@@ -22,25 +19,12 @@ use Piwik\Plugins\PDFReports\API as APIPDFReports;
  *  - activate phone numbers
  *  - check remaining credits
  *  - send SMS
- * @package MobileMessaging
+ * @method static \Piwik\Plugins\MobileMessaging\API getInstance()
  */
-class API
+class API extends \Piwik\Plugin\API
 {
     const VERIFICATION_CODE_LENGTH = 5;
     const SMS_FROM = 'Piwik';
-
-    static private $instance = null;
-
-    /**
-     * @return \Piwik\Plugins\MobileMessaging\API
-     */
-    static public function getInstance()
-    {
-        if (self::$instance == null) {
-            self::$instance = new self;
-        }
-        return self::$instance;
-    }
 
     /**
      * @param string $provider
@@ -69,9 +53,9 @@ class API
         $settings = $this->getCredentialManagerSettings();
         return array(
             MobileMessaging::PROVIDER_OPTION =>
-            isset($settings[MobileMessaging::PROVIDER_OPTION]) ? $settings[MobileMessaging::PROVIDER_OPTION] : null,
+                isset($settings[MobileMessaging::PROVIDER_OPTION]) ? $settings[MobileMessaging::PROVIDER_OPTION] : null,
             MobileMessaging::API_KEY_OPTION  =>
-            isset($settings[MobileMessaging::API_KEY_OPTION]) ? $settings[MobileMessaging::API_KEY_OPTION] : null,
+                isset($settings[MobileMessaging::API_KEY_OPTION]) ? $settings[MobileMessaging::API_KEY_OPTION] : null,
         );
     }
 
@@ -130,12 +114,12 @@ class API
             $verificationCode .= mt_rand(0, 9);
         }
 
-        $smsText = Piwik_Translate(
+        $smsText = Piwik::translate(
             'MobileMessaging_VerificationText',
             array(
                  $verificationCode,
-                 Piwik_Translate('General_Settings'),
-                 Piwik_Translate('MobileMessaging_SettingsMenu')
+                 Piwik::translate('General_Settings'),
+                 Piwik::translate('MobileMessaging_SettingsMenu')
             )
         );
 
@@ -220,44 +204,21 @@ class API
         unset($phoneNumbers[$phoneNumber]);
         $this->savePhoneNumbers($phoneNumbers);
 
-        // remove phone number from reports
-        $pdfReportsAPIInstance = APIPDFReports::getInstance();
-        $reports = $pdfReportsAPIInstance->getReports(
-            $idSite = false,
-            $period = false,
-            $idReport = false,
-            $ifSuperUserReturnOnlySuperUserReports = $this->getDelegatedManagement()
-        );
-
-        foreach ($reports as $report) {
-            if ($report['type'] == MobileMessaging::MOBILE_TYPE) {
-                $reportParameters = $report['parameters'];
-                $reportPhoneNumbers = $reportParameters[MobileMessaging::PHONE_NUMBERS_PARAMETER];
-                $updatedPhoneNumbers = array();
-                foreach ($reportPhoneNumbers as $reportPhoneNumber) {
-                    if ($reportPhoneNumber != $phoneNumber) {
-                        $updatedPhoneNumbers[] = $reportPhoneNumber;
-                    }
-                }
-
-                if (count($updatedPhoneNumbers) != count($reportPhoneNumbers)) {
-                    $reportParameters[MobileMessaging::PHONE_NUMBERS_PARAMETER] = $updatedPhoneNumbers;
-
-                    // note: reports can end up without any recipients
-                    $pdfReportsAPIInstance->updateReport(
-                        $report['idreport'],
-                        $report['idsite'],
-                        $report['description'],
-                        $report['period'],
-                        $report['hour'],
-                        $report['type'],
-                        $report['format'],
-                        $report['reports'],
-                        $reportParameters
-                    );
-                }
-            }
-        }
+        /**
+         * Triggered after a phone number has been deleted. This event should be used to clean up any data that is
+         * related to the now deleted phone number. The ScheduledReports plugin, for example, uses this event to remove
+         * the phone number from all reports to make sure no text message will be sent to this phone number.
+         *
+         * **Example**
+         *
+         *     public function deletePhoneNumber($phoneNumber)
+         *     {
+         *         $this->unsubscribePhoneNumberFromScheduledReport($phoneNumber);
+         *     }
+         *
+         * @param string $phoneNumber The phone number that was just deleted.
+         */
+        Piwik::postEvent('MobileMessaging.deletePhoneNumber', array($phoneNumber));
 
         return true;
     }
@@ -397,12 +358,12 @@ class API
 
     private function checkCredentialManagementRights()
     {
-        $this->getDelegatedManagement() ? Piwik::checkUserIsNotAnonymous() : Piwik::checkUserIsSuperUser();
+        $this->getDelegatedManagement() ? Piwik::checkUserIsNotAnonymous() : Piwik::checkUserHasSuperUserAccess();
     }
 
     private function setUserSettings($user, $settings)
     {
-        Piwik_SetOption(
+        Option::set(
             $user . MobileMessaging::USER_SETTINGS_POSTFIX_OPTION,
             Common::json_encode($settings)
         );
@@ -420,13 +381,13 @@ class API
 
     private function getCredentialManagerLogin()
     {
-        return $this->getDelegatedManagement() ? Piwik::getCurrentUserLogin() : Piwik::getSuperUserLogin();
+        return $this->getDelegatedManagement() ? Piwik::getCurrentUserLogin() : '';
     }
 
     private function getUserSettings($user)
     {
         $optionIndex = $user . MobileMessaging::USER_SETTINGS_POSTFIX_OPTION;
-        $userSettings = Piwik_GetOption($optionIndex);
+        $userSettings = Option::get($optionIndex);
 
         if (empty($userSettings)) {
             $userSettings = array();
@@ -454,8 +415,8 @@ class API
      */
     public function setDelegatedManagement($delegatedManagement)
     {
-        Piwik::checkUserIsSuperUser();
-        Piwik_SetOption(MobileMessaging::DELEGATED_MANAGEMENT_OPTION, $delegatedManagement);
+        Piwik::checkUserHasSuperUserAccess();
+        Option::set(MobileMessaging::DELEGATED_MANAGEMENT_OPTION, $delegatedManagement);
     }
 
     /**
@@ -466,6 +427,6 @@ class API
     public function getDelegatedManagement()
     {
         Piwik::checkUserHasSomeViewAccess();
-        return Piwik_GetOption(MobileMessaging::DELEGATED_MANAGEMENT_OPTION) == 'true';
+        return Option::get(MobileMessaging::DELEGATED_MANAGEMENT_OPTION) == 'true';
     }
 }

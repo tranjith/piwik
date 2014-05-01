@@ -5,26 +5,42 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik_Plugins
- * @package DevicesDetection
  */
 
 namespace Piwik\Plugins\DevicesDetection;
 
 use Exception;
-use Piwik\ArchiveProcessor;
-use Piwik\Config;
-use Piwik\Common;
-use Piwik\Plugins\DevicesDetection\Archiver;
-use Piwik\WidgetsList;
-use Piwik\Db;
-use UserAgentParserEnhanced;
 
-require_once PIWIK_INCLUDE_PATH . "/plugins/DevicesDetection/UserAgentParserEnhanced/UserAgentParserEnhanced.php";
+use Piwik\ArchiveProcessor;
+use Piwik\CacheFile;
+use Piwik\Common;
+use Piwik\Config;
+use Piwik\Db;
+use Piwik\Menu\MenuAdmin;
+use Piwik\Menu\MenuMain;
+use Piwik\Piwik;
+use Piwik\Plugin\ViewDataTable;
+use Piwik\WidgetsList;
+use DeviceDetector;
+
 require_once PIWIK_INCLUDE_PATH . '/plugins/DevicesDetection/functions.php';
 
 class DevicesDetection extends \Piwik\Plugin
 {
+    /**
+     * @see Piwik\Plugin::getInformation
+     */
+    public function getInformation()
+    {
+        return array(
+            'description'     => "[Beta Plugin] " . Piwik::translate("DevicesDetection_PluginDescription"),
+            'authors'          => array(array('name' => 'Piwik PRO', 'homepage' => 'http://piwik.pro')),
+            'version'         => '1.14',
+            'license'          => 'GPL v3+',
+            'license_homepage' => 'http://www.gnu.org/licenses/gpl.html'
+        );
+    }
+
     /** The set of related reports displayed under the 'Operating Systems' header. */
     private $osRelatedReports = null;
     private $browserRelatedReports = null;
@@ -33,42 +49,65 @@ class DevicesDetection extends \Piwik\Plugin
     {
         parent::__construct();
         $this->osRelatedReports = array(
-            'DevicesDetection.getOsFamilies' => Piwik_Translate('DevicesDetection_OperatingSystemFamilies'),
-            'DevicesDetection.getOsVersions' => Piwik_Translate('DevicesDetection_OperatingSystemVersions')
+            'DevicesDetection.getOsFamilies' => Piwik::translate('DevicesDetection_OperatingSystemFamilies'),
+            'DevicesDetection.getOsVersions' => Piwik::translate('DevicesDetection_OperatingSystemVersions')
         );
         $this->browserRelatedReports = array(
-            'DevicesDetection.getBrowserFamilies' => Piwik_Translate('DevicesDetection_BrowsersFamily'),
-            'DevicesDetection.getBrowserVersions' => Piwik_Translate('DevicesDetection_BrowserVersions')
+            'DevicesDetection.getBrowserFamilies' => Piwik::translate('UserSettings_BrowserFamilies'),
+            'DevicesDetection.getBrowserVersions' => Piwik::translate('DevicesDetection_BrowserVersions')
         );
     }
 
-    /**
-     * @see Piwik_Plugin::getInformation
-     */
-    public function getInformation()
+    protected function getRawMetadataDeviceType()
     {
+        $deviceTypeList = implode(", ", DeviceDetector::$deviceTypes);
+
+        $deviceTypeLabelToCode = function ($type) use ($deviceTypeList) {
+            $index = array_search(strtolower(trim(urldecode($type))), DeviceDetector::$deviceTypes);
+            if ($index === false) {
+                throw new Exception("deviceType segment must be one of: $deviceTypeList");
+            }
+            return $index;
+        };
+
         return array(
-            'description'     => "[Beta Plugin] " . Piwik_Translate("DevicesDetection_PluginDescription"),
-            'author'          => 'Piwik and Clearcode.cc',
-            'author_homepage' => 'http://clearcode.cc',
-            'version'         => '1.12-b6',
+            'DevicesDetection_DevicesDetection',
+            'DevicesDetection_DeviceType',
+            'DevicesDetection',
+            'getType',
+            'DevicesDetection_DeviceType',
+
+            // Segment
+            'deviceType',
+            'log_visit.config_device_type',
+            $deviceTypeList,
+            $deviceTypeLabelToCode
         );
     }
 
     /**
-     * @see Piwik_Plugin::getListHooksRegistered
+     * @see Piwik\Plugin::getListHooksRegistered
      */
     public function getListHooksRegistered()
     {
         return array(
-            'ArchiveProcessing_Day.compute'            => "archiveDay",
-            'ArchiveProcessing_Period.compute'         => 'archivePeriod',
-            'Menu.add'                                 => 'addMenu',
-            'Tracker.newVisitorInformation'            => 'parseMobileVisitData',
-            'WidgetsList.add'                          => 'addWidgets',
-            'API.getReportMetadata'                    => 'getReportMetadata',
-            'API.getSegmentsMetadata'                  => 'getSegmentsMetadata',
-            'ViewDataTable.getReportDisplayProperties' => 'getReportDisplayProperties',
+            'Menu.Reporting.addItems'         => 'addMenu',
+            'Menu.Admin.addItems'             => 'addAdminMenu',
+            'Tracker.newVisitorInformation'   => 'parseMobileVisitData',
+            'WidgetsList.addWidgets'          => 'addWidgets',
+            'API.getReportMetadata'           => 'getReportMetadata',
+            'API.getSegmentDimensionMetadata' => 'getSegmentsMetadata',
+            'ViewDataTable.configure'         => 'configureViewDataTable',
+        );
+    }
+
+    public function addAdminMenu()
+    {
+        MenuAdmin::getInstance()->add(
+            'CoreAdminHome_MenuDiagnostic', 'DevicesDetection_DeviceDetection',
+            array('module' => 'DevicesDetection', 'action' => 'deviceDetection'),
+            Piwik::isUserHasSomeAdminAccess(),
+            $order = 40
         );
     }
 
@@ -77,24 +116,14 @@ class DevicesDetection extends \Piwik\Plugin
      * Also used to define Widgets, and Segment(s)
      *
      * @return array Category, Report Name, API Module, API action, Translated column name, & optional segment info
-     *
      */
     protected function getRawMetadataReports()
     {
-        $report = array(
-            array(
-                'DevicesDetection_DevicesDetection',
-                'DevicesDetection_DeviceType',
-                'DevicesDetection',
-                'getType',
-                'DevicesDetection_DeviceType',
 
-                // Segment
-                'deviceType',
-                'log_visit.config_device_type',
-                implode(", ", UserAgentParserEnhanced::$deviceTypes), // comma separated examples
-                function($type) { return array_search( strtolower(trim(urldecode($type))), UserAgentParserEnhanced::$deviceTypes); }
-            ),
+        $report = array(
+            // device type report (tablet, desktop, mobile...)
+            $this->getRawMetadataDeviceType(),
+
             // device brands report
             array(
                 'DevicesDetection_DevicesDetection',
@@ -130,10 +159,10 @@ class DevicesDetection extends \Piwik\Plugin
             // Browser family report
             array(
                 'DevicesDetection_DevicesDetection',
-                'DevicesDetection_BrowsersFamily',
+                'UserSettings_BrowserFamilies',
                 'DevicesDetection',
                 'getBrowserFamilies',
-                'DevicesDetection_BrowsersFamily',
+                'UserSettings_BrowserFamilies',
             ),
             // Browser versions report
             array(
@@ -164,17 +193,18 @@ class DevicesDetection extends \Piwik\Plugin
     {
         // Note: only one field segmented so far: deviceType
         foreach ($this->getRawMetadataReports() as $report) {
-            @list($category, $name, $apiModule, $apiAction, $columnName, $segment, $sqlSegment, $acceptedValues) = $report;
+            @list($category, $name, $apiModule, $apiAction, $columnName, $segment, $sqlSegment, $acceptedValues, $sqlFilter) = $report;
 
             if (empty($segment)) continue;
+
             $segments[] = array(
                 'type'           => 'dimension',
-                'category'       => Piwik_Translate('General_Visit'),
+                'category'       => Piwik::translate('General_Visit'),
                 'name'           => $columnName,
                 'segment'        => $segment,
                 'acceptedValues' => $acceptedValues,
                 'sqlSegment'     => $sqlSegment,
-                'sqlFilter'      => isset($sqlFilter) ? $sqlFilter : false,
+                'sqlFilter'      => isset($sqlFilter) ? $sqlFilter : false
             );
         }
     }
@@ -188,16 +218,16 @@ class DevicesDetection extends \Piwik\Plugin
                 continue;
 
             $report = array(
-                'category'  => Piwik_Translate($category),
-                'name'      => Piwik_Translate($name),
+                'category'  => Piwik::translate($category),
+                'name'      => Piwik::translate($name),
                 'module'    => $apiModule,
                 'action'    => $apiAction,
-                'dimension' => Piwik_Translate($columnName),
+                'dimension' => Piwik::translate($columnName),
                 'order'     => $i++
             );
 
             $translation = $name . 'Documentation';
-            $translated = Piwik_Translate($translation, '<br />');
+            $translated = Piwik::translate($translation, '<br />');
             if ($translated != $translation) {
                 $report['documentation'] = $translated;
             }
@@ -211,17 +241,12 @@ class DevicesDetection extends \Piwik\Plugin
 // we catch the exception
         try {
             $q1 = "ALTER TABLE `" . Common::prefixTable("log_visit") . "`
-                ADD `config_os_version` VARCHAR( 10 ) CHARACTER SET utf8 COLLATE utf8_general_ci NULL DEFAULT NULL AFTER `config_os` ,
-                ADD `config_device_type` TINYINT( 10 ) NULL DEFAULT NULL AFTER `config_browser_version` ,
+                ADD `config_os_version` VARCHAR( 100 ) CHARACTER SET utf8 COLLATE utf8_general_ci NULL DEFAULT NULL AFTER `config_os` ,
+                ADD `config_device_type` TINYINT( 100 ) NULL DEFAULT NULL AFTER `config_browser_version` ,
                 ADD `config_device_brand` VARCHAR( 100 ) CHARACTER SET utf8 COLLATE utf8_general_ci NULL DEFAULT NULL AFTER `config_device_type` ,
                 ADD `config_device_model` VARCHAR( 100 ) CHARACTER SET utf8 COLLATE utf8_general_ci NULL DEFAULT NULL AFTER `config_device_brand`";
             Db::exec($q1);
-            // conditionaly add this column
-            if (@Config::getInstance()->Debug['store_user_agent_in_visit']) {
-                $q2 = "ALTER TABLE `" . Common::prefixTable("log_visit") . "`
-                ADD `config_debug_ua` VARCHAR( 512 ) CHARACTER SET utf8 COLLATE utf8_general_ci NULL DEFAULT NULL AFTER `config_device_model`";
-                Db::exec($q2);
-            }
+
         } catch (Exception $e) {
             if (!Db::get()->isErrNo($e, '1060')) {
                 throw $e;
@@ -229,11 +254,12 @@ class DevicesDetection extends \Piwik\Plugin
         }
     }
 
-    public function parseMobileVisitData(&$visitorInfo, $extraInfo)
+    public function parseMobileVisitData(&$visitorInfo, \Piwik\Tracker\Request $request)
     {
-        $userAgent = $extraInfo['UserAgent'];
+        $userAgent = $request->getUserAgent();
 
-        $UAParser = new UserAgentParserEnhanced($userAgent);
+        $UAParser = new DeviceDetector($userAgent);
+        $UAParser->setCache(new CacheFile('tracker', 86400));
         $UAParser->parse();
         $deviceInfo['config_browser_name'] = $UAParser->getBrowser("short_name");
         $deviceInfo['config_browser_version'] = $UAParser->getBrowser("version");
@@ -243,130 +269,112 @@ class DevicesDetection extends \Piwik\Plugin
         $deviceInfo['config_device_model'] = $UAParser->getModel();
         $deviceInfo['config_device_brand'] = $UAParser->getBrand();
 
-        if (@Config::getInstance()->Debug['store_user_agent_in_visit']) {
-            $deviceInfo['config_debug_ua'] = $userAgent;
-        }
-
         $visitorInfo = array_merge($visitorInfo, $deviceInfo);
         Common::printDebug("Device Detection:");
         Common::printDebug($deviceInfo);
     }
 
-    public function archiveDay(ArchiveProcessor\Day $archiveProcessor)
-    {
-        $archiving = new Archiver($archiveProcessor);
-        if ($archiving->shouldArchive()) {
-            $archiving->archiveDay();
-        }
-    }
-
-    public function archivePeriod(ArchiveProcessor\Period $archiveProcessor)
-    {
-        $archiving = new Archiver($archiveProcessor);
-        if ($archiving->shouldArchive()) {
-            $archiving->archivePeriod();
-        }
-    }
-
     public function addMenu()
     {
-        Piwik_AddMenu('General_Visitors', 'DevicesDetection_submenu', array('module' => 'DevicesDetection', 'action' => 'index'));
+        MenuMain::getInstance()->add('General_Visitors', 'DevicesDetection_submenu', array('module' => 'DevicesDetection', 'action' => 'index'));
     }
 
-    public function getReportDisplayProperties(&$properties)
+    public function configureViewDataTable(ViewDataTable $view)
     {
-        $properties['DevicesDetection.getType'] = $this->getDisplayPropertiesForGetType();
-        $properties['DevicesDetection.getBrand'] = $this->getDisplayPropertiesForGetBrand();
-        $properties['DevicesDetection.getModel'] = $this->getDisplayPropertiesForGetModel();
-        $properties['DevicesDetection.getOsFamilies'] = $this->getDisplayPropertiesForGetOsFamilies();
-        $properties['DevicesDetection.getOsVersions'] = $this->getDisplayPropertiesForGetOsVersions();
-        $properties['DevicesDetection.getBrowserFamilies'] = $this->getDisplayPropertiesForGetBrowserFamilies();
-        $properties['DevicesDetection.getBrowserVersions'] = $this->getDisplayPropertiesForGetBrowserVersions();
+        switch ($view->requestConfig->apiMethodToRequestDataTable) {
+            case 'DevicesDetection.getType':
+                $this->configureViewForGetType($view);
+                break;
+            case 'DevicesDetection.getBrand':
+                $this->configureViewForGetBrand($view);
+                break;
+            case 'DevicesDetection.getModel':
+                $this->configureViewForGetModel($view);
+                break;
+            case 'DevicesDetection.getOsFamilies':
+                $this->configureViewForGetOsFamilies($view);
+                break;
+            case 'DevicesDetection.getOsVersions':
+                $this->configureViewForGetOsVersions($view);
+                break;
+            case 'DevicesDetection.getBrowserFamilies':
+                $this->configureViewForGetBrowserFamilies($view);
+                break;
+            case 'DevicesDetection.getBrowserVersions':
+                $this->configureViewForGetBrowserVersions($view);
+                break;
+        }
     }
 
-    private function getDisplayPropertiesForGetType()
+    private function configureViewForGetType(ViewDataTable $view)
     {
-        return array(
-            'show_search'                 => false,
-            'show_exclude_low_population' => false,
-            'translations'                => array('label' => Piwik_Translate("DevicesDetection_dataTableLabelTypes"))
-        );
+        $view->config->show_search = false;
+        $view->config->show_exclude_low_population = false;
+        $view->config->addTranslation('label', Piwik::translate("DevicesDetection_dataTableLabelTypes"));
     }
 
-    private function getDisplayPropertiesForGetBrand()
+    private function configureViewForGetBrand(ViewDataTable $view)
     {
-        return array(
-            'show_search'                 => false,
-            'show_exclude_low_population' => false,
-            'translations'                => array('label' => Piwik_Translate("DevicesDetection_dataTableLabelBrands"))
-        );
+        $view->config->show_search = false;
+        $view->config->show_exclude_low_population = false;
+        $view->config->addTranslation('label', Piwik::translate("DevicesDetection_dataTableLabelBrands"));
     }
 
-    private function getDisplayPropertiesForGetModel()
+    private function configureViewForGetModel(ViewDataTable $view)
     {
-        return array(
-            'show_search'                 => false,
-            'show_exclude_low_population' => false,
-            'translations'                => array('label' => Piwik_Translate("DevicesDetection_dataTableLabelModels"))
-        );
+        $view->config->show_search = false;
+        $view->config->show_exclude_low_population = false;
+        $view->config->addTranslation('label', Piwik::translate("DevicesDetection_dataTableLabelModels"));
     }
 
-    private function getDisplayPropertiesForGetOsFamilies()
+    private function configureViewForGetOsFamilies(ViewDataTable $view)
     {
-        return array(
-            'show_search'                 => false,
-            'show_exclude_low_population' => false,
-            'translations' => array('label' => Piwik_Translate("DevicesDetection_dataTableLabelSystemFamily")),
-            'title' => Piwik_Translate('DevicesDetection_OperatingSystemFamilies'),
-            'related_reports' => $this->getOsRelatedReports()
-        );
+        $view->config->title = Piwik::translate('DevicesDetection_OperatingSystemFamilies');
+        $view->config->show_search = false;
+        $view->config->show_exclude_low_population = false;
+        $view->config->addTranslation('label', Piwik::translate("UserSettings_OperatingSystemFamily"));
+        $view->config->addRelatedReports($this->getOsRelatedReports());
     }
 
-    private function getDisplayPropertiesForGetOsVersions()
+    private function configureViewForGetOsVersions(ViewDataTable $view)
     {
-        return array(
-            'show_search'                 => false,
-            'show_exclude_low_population' => false,
-            'translations' => array('label' => Piwik_Translate("DevicesDetection_dataTableLabelSystemVersion")),
-            'title' => Piwik_Translate('DevicesDetection_OperatingSystemVersions'),
-            'related_reports' => $this->getOsRelatedReports()
-        );
+        $view->config->title = Piwik::translate('DevicesDetection_OperatingSystemVersions');
+        $view->config->show_search = false;
+        $view->config->show_exclude_low_population = false;
+        $view->config->addTranslation('label', Piwik::translate("DevicesDetection_dataTableLabelSystemVersion"));
+        $view->config->addRelatedReports($this->getOsRelatedReports());
     }
 
-    private function getDisplayPropertiesForGetBrowserFamilies()
+    private function configureViewForGetBrowserFamilies(ViewDataTable $view)
     {
-        return array(
-            'show_search'                 => false,
-            'show_exclude_low_population' => false,
-            'translations' => array('label' => Piwik_Translate("DevicesDetection_dataTableLabelBrowserFamily")),
-            'title' => Piwik_Translate('DevicesDetection_BrowsersFamily'),
-            'related_reports' => $this->getBrowserRelatedReports()
-        );
+        $view->config->title = Piwik::translate('UserSettings_BrowserFamilies');
+        $view->config->show_search = false;
+        $view->config->show_exclude_low_population = false;
+        $view->config->addTranslation('label', Piwik::translate("DevicesDetection_dataTableLabelBrowserFamily"));
+        $view->config->addRelatedReports($this->getBrowserRelatedReports());
     }
 
-    private function getDisplayPropertiesForGetBrowserVersions()
+    private function configureViewForGetBrowserVersions(ViewDataTable $view)
     {
-        return array(
-            'show_search'                 => false,
-            'show_exclude_low_population' => false,
-            'translations' => array('label' => Piwik_Translate("DevicesDetection_dataTableLabelBrowserVersion")),
-            'related_reports' => $this->getBrowserRelatedReports()
-        );
+        $view->config->show_search = false;
+        $view->config->show_exclude_low_population = false;
+        $view->config->addTranslation('label', Piwik::translate("UserSettings_ColumnBrowserVersion"));
+        $view->config->addRelatedReports($this->getBrowserRelatedReports());
     }
 
     private function getOsRelatedReports()
     {
         return array(
-            'DevicesDetection.getOsFamilies' => Piwik_Translate('DevicesDetection_OperatingSystemFamilies'),
-            'DevicesDetection.getOsVersions' => Piwik_Translate('DevicesDetection_OperatingSystemVersions')
+            'DevicesDetection.getOsFamilies' => Piwik::translate('DevicesDetection_OperatingSystemFamilies'),
+            'DevicesDetection.getOsVersions' => Piwik::translate('DevicesDetection_OperatingSystemVersions')
         );
     }
 
     private function getBrowserRelatedReports()
     {
         return array(
-            'DevicesDetection.getBrowserFamilies' => Piwik_Translate('DevicesDetection_BrowsersFamily'),
-            'DevicesDetection.getBrowserVersions' => Piwik_Translate('DevicesDetection_BrowserVersions')
+            'DevicesDetection.getBrowserFamilies' => Piwik::translate('UserSettings_BrowserFamilies'),
+            'DevicesDetection.getBrowserVersions' => Piwik::translate('DevicesDetection_BrowserVersions')
         );
     }
 }

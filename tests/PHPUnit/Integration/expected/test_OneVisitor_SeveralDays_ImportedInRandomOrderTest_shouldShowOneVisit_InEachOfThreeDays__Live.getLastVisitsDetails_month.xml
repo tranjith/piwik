@@ -11,6 +11,7 @@
 		<visitEcommerceStatus>none</visitEcommerceStatus>
 		<visitEcommerceStatusIcon />
 		<searches>0</searches>
+		<events>0</events>
 		<actions>1</actions>
 		<actionDetails>
 			<row>
@@ -18,8 +19,8 @@
 				<url>http://piwik.net/</url>
 				<pageTitle />
 				<pageIdAction>1</pageIdAction>
-				<pageId>1</pageId>
 				<serverTimePretty>Sun 7 Apr 10:00:00</serverTimePretty>
+				<pageId>1</pageId>
 				<icon />
 			</row>
 		</actionDetails>
@@ -74,7 +75,7 @@
 		<browserCode>IE</browserCode>
 		<browserVersion>7.0</browserVersion>
 		<screenType>unknown</screenType>
-		<deviceType>desktop</deviceType>
+		<deviceType>Desktop</deviceType>
 		<resolution>unknown</resolution>
 		<screenTypeIcon>plugins/UserSettings/images/screens/unknown.gif</screenTypeIcon>
 		<plugins />
@@ -96,6 +97,7 @@
 		<visitEcommerceStatus>none</visitEcommerceStatus>
 		<visitEcommerceStatusIcon />
 		<searches>0</searches>
+		<events>0</events>
 		<actions>1</actions>
 		<actionDetails>
 			<row>
@@ -103,8 +105,8 @@
 				<url>http://piwik.net/</url>
 				<pageTitle />
 				<pageIdAction>1</pageIdAction>
-				<pageId>2</pageId>
 				<serverTimePretty>Sat 6 Apr 11:00:00</serverTimePretty>
+				<pageId>2</pageId>
 				<icon />
 			</row>
 		</actionDetails>
@@ -159,7 +161,7 @@
 		<browserCode>IE</browserCode>
 		<browserVersion>7.0</browserVersion>
 		<screenType>unknown</screenType>
-		<deviceType>desktop</deviceType>
+		<deviceType>Desktop</deviceType>
 		<resolution>unknown</resolution>
 		<screenTypeIcon>plugins/UserSettings/images/screens/unknown.gif</screenTypeIcon>
 		<plugins />
@@ -181,6 +183,7 @@
 		<visitEcommerceStatus>none</visitEcommerceStatus>
 		<visitEcommerceStatusIcon />
 		<searches>0</searches>
+		<events>0</events>
 		<actions>1</actions>
 		<actionDetails>
 			<row>
@@ -188,8 +191,8 @@
 				<url>http://piwik.net/</url>
 				<pageTitle />
 				<pageIdAction>1</pageIdAction>
-				<pageId>3</pageId>
 				<serverTimePretty>Fri 5 Apr 12:00:00</serverTimePretty>
+				<pageId>3</pageId>
 				<icon />
 			</row>
 		</actionDetails>
@@ -244,7 +247,7 @@
 		<browserCode>IE</browserCode>
 		<browserVersion>7.0</browserVersion>
 		<screenType>unknown</screenType>
-		<deviceType>desktop</deviceType>
+		<deviceType>Desktop</deviceType>
 		<resolution>unknown</resolution>
 		<screenTypeIcon>plugins/UserSettings/images/screens/unknown.gif</screenTypeIcon>
 		<plugins />

@@ -6,9 +6,10 @@
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  */
 use Piwik\EventDispatcher;
+use Piwik\ScheduledTask;
+use Piwik\ScheduledTaskTimetable;
 use Piwik\ScheduledTime\Daily;
 use Piwik\TaskScheduler;
-use Piwik\ScheduledTask;
 
 class TaskSchedulerTest extends PHPUnit_Framework_TestCase
 {
@@ -47,16 +48,14 @@ class TaskSchedulerTest extends PHPUnit_Framework_TestCase
 
     /**
      * @group Core
-     * @group TaskScheduler
      * @dataProvider getTimetableFromOptionValueTestCases
      */
     public function testGetTimetableFromOptionValue($expectedTimetable, $option)
     {
-        $getTimetableFromOptionValue = new ReflectionMethod(
-            '\\Piwik\\TaskScheduler', 'getTimetableFromOptionValue'
-        );
-        $getTimetableFromOptionValue->setAccessible(true);
-        $this->assertEquals($expectedTimetable, $getTimetableFromOptionValue->invoke(new TaskScheduler(), $option));
+        self::stubPiwikOption($option);
+
+        $timetable = new ScheduledTaskTimetable();
+        $this->assertEquals($expectedTimetable, $timetable->getTimetable());
     }
 
     /**
@@ -69,23 +68,20 @@ class TaskSchedulerTest extends PHPUnit_Framework_TestCase
         return array(
             array(true, 'CoreAdminHome.purgeOutdatedArchives', $timetable),
             array(true, 'PrivacyManager.deleteReportData_1', $timetable),
-            array(false, 'PDFReports.weeklySchedule"', $timetable)
+            array(false, 'ScheduledReports.weeklySchedule"', $timetable)
         );
     }
 
     /**
      * @group Core
-     * @group TaskScheduler
+     * 
      * @dataProvider taskHasBeenScheduledOnceTestCases
      */
     public function testTaskHasBeenScheduledOnce($expectedDecision, $taskName, $timetable)
     {
-        $taskHasBeenScheduledOnce = new ReflectionMethod(
-            '\Piwik\TaskScheduler', 'taskHasBeenScheduledOnce'
-        );
-        $taskHasBeenScheduledOnce->setAccessible(true);
-
-        $this->assertEquals($expectedDecision, $taskHasBeenScheduledOnce->invoke(new TaskScheduler(), $taskName, $timetable));
+        $timetableObj = new ScheduledTaskTimetable();
+        $timetableObj->setTimetable($timetable);
+        $this->assertEquals($expectedDecision, $timetableObj->taskHasBeenScheduledOnce($taskName));
     }
 
     /**
@@ -98,13 +94,12 @@ class TaskSchedulerTest extends PHPUnit_Framework_TestCase
         return array(
             array(1355529607, 'CoreAdminHome', 'purgeOutdatedArchives', null, $timetable),
             array(1322229607, 'PrivacyManager', 'deleteReportData', 1, $timetable),
-            array(false, 'PDFReports', 'weeklySchedule', null, $timetable)
+            array(false, 'ScheduledReports', 'weeklySchedule', null, $timetable)
         );
     }
 
     /**
      * @group Core
-     * @group TaskScheduler
      * @dataProvider getScheduledTimeForMethodTestCases
      */
     public function testGetScheduledTimeForMethod($expectedTime, $className, $methodName, $methodParameter, $timetable)
@@ -132,23 +127,21 @@ class TaskSchedulerTest extends PHPUnit_Framework_TestCase
         return array(
             array(false, 'CoreAdminHome.purgeOutdatedArchives', $timetable),
             array(true, 'PrivacyManager.deleteReportData_1', $timetable),
-            array(false, 'PDFReports.weeklySchedule"', $timetable)
+            array(false, 'ScheduledReports.weeklySchedule"', $timetable)
         );
     }
 
     /**
      * @group Core
-     * @group TaskScheduler
+     * 
      * @dataProvider taskShouldBeExecutedTestCases
      */
     public function testTaskShouldBeExecuted($expectedDecision, $taskName, $timetable)
     {
-        $taskShouldBeExecuted = new ReflectionMethod(
-            '\Piwik\TaskScheduler', 'taskShouldBeExecuted'
-        );
-        $taskShouldBeExecuted->setAccessible(true);
+        self::stubPiwikOption(serialize($timetable));
 
-        $this->assertEquals($expectedDecision, $taskShouldBeExecuted->invoke(new TaskScheduler(), $taskName, $timetable));
+        $timetable = new ScheduledTaskTimetable();
+        $this->assertEquals($expectedDecision, $timetable->shouldExecuteTask($taskName));
     }
 
     /**
@@ -165,7 +158,7 @@ class TaskSchedulerTest extends PHPUnit_Framework_TestCase
 
     /**
      * @group Core
-     * @group TaskScheduler
+     * 
      * @dataProvider executeTaskTestCases
      */
     public function testExecuteTask($methodName, $parameterValue)
@@ -179,11 +172,13 @@ class TaskSchedulerTest extends PHPUnit_Framework_TestCase
 
         $this->assertNotEmpty($executeTask->invoke(
             new TaskScheduler(),
-            new ScheduledTask ($mock, $methodName, $parameterValue, new Daily())
+            new ScheduledTask ($mock, $methodName, $parameterValue, \Piwik\ScheduledTime::factory('daily'))
         ));
     }
 
     /**
+     * @group Core
+     *
      * Dataprovider for testRunTasks
      */
     public function testRunTasksTestCases()
@@ -276,24 +271,25 @@ class TaskSchedulerTest extends PHPUnit_Framework_TestCase
 
     /**
      * @group Core
-     * @group TaskScheduler
+     * 
      * @dataProvider testRunTasksTestCases
      */
     public function testRunTasks($expectedTimetable, $expectedExecutedTasks, $timetableBeforeTaskExecution, $configuredTasks)
     {
         // temporarily unload plugins
-        $plugins = \Piwik\PluginsManager::getInstance()->getLoadedPlugins();
+        $plugins = \Piwik\Plugin\Manager::getInstance()->getLoadedPlugins();
         $plugins = array_map(function ($p) { return $p->getPluginName(); }, $plugins);
 
-        \Piwik\PluginsManager::getInstance()->unloadPlugins();
+        \Piwik\Plugin\Manager::getInstance()->unloadPlugins();
         
         // make sure the get tasks event returns our configured tasks
-        Piwik_AddAction(TaskScheduler::GET_TASKS_EVENT, function(&$tasks) use($configuredTasks) {
+        \Piwik\Piwik::addAction(TaskScheduler::GET_TASKS_EVENT, function(&$tasks) use($configuredTasks) {
             $tasks = $configuredTasks;
         });
 
         // stub the piwik option object to control the returned option value
         self::stubPiwikOption(serialize($timetableBeforeTaskExecution));
+        TaskScheduler::unsetInstance();
 
         // execute tasks
         $executionResults = TaskScheduler::runTasks();
@@ -307,13 +303,12 @@ class TaskSchedulerTest extends PHPUnit_Framework_TestCase
         $this->assertEquals($expectedExecutedTasks, $executedTasks);
 
         // assert the timetable is correctly updated
-        $getTimetableFromOptionTable = new ReflectionMethod('\\Piwik\\TaskScheduler', 'getTimetableFromOptionTable');
-        $getTimetableFromOptionTable->setAccessible(true);
-        $this->assertEquals($expectedTimetable, $getTimetableFromOptionTable->invoke(new TaskScheduler()));
+        $timetable = new ScheduledTaskTimetable();
+        $this->assertEquals($expectedTimetable, $timetable->getTimetable());
 
         // restore loaded plugins & piwik options
         EventDispatcher::getInstance()->clearObservers(TaskScheduler::GET_TASKS_EVENT);
-        \Piwik\PluginsManager::getInstance()->loadPlugins($plugins);
+        \Piwik\Plugin\Manager::getInstance()->loadPlugins($plugins);
         self::resetPiwikOption();
     }
 

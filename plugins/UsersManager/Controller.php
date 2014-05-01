@@ -5,29 +5,27 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik_Plugins
- * @package UsersManager
  */
 namespace Piwik\Plugins\UsersManager;
 
 use Exception;
 use Piwik\API\ResponseBuilder;
-use Piwik\Controller\Admin;
-use Piwik\Piwik;
 use Piwik\Common;
-use Piwik\Config;
-use Piwik\Tracker\IgnoreCookie;
-use Piwik\View;
-use Piwik\Url;
-use Piwik\Site;
+use Piwik\Piwik;
+use Piwik\Plugins\LanguagesManager\LanguagesManager;
 use Piwik\Plugins\SitesManager\API as APISitesManager;
 use Piwik\Plugins\UsersManager\API as APIUsersManager;
+use Piwik\Plugins\LanguagesManager\API as APILanguagesManager;
+use Piwik\Site;
+use Piwik\Tracker\IgnoreCookie;
+use Piwik\Url;
+use Piwik\View;
+use Piwik\MetricsFormatter;
 
 /**
  *
- * @package UsersManager
  */
-class Controller extends Admin
+class Controller extends \Piwik\Plugin\ControllerAdmin
 {
     static function orderByName($a, $b)
     {
@@ -53,7 +51,7 @@ class Controller extends Admin
 
         if ($idSiteSelected === 'all') {
             $usersAccessByWebsite = array();
-            $defaultReportSiteName = Piwik_Translate('UsersManager_ApplyToAllWebsites');
+            $defaultReportSiteName = Piwik::translate('UsersManager_ApplyToAllWebsites');
         } else {
             $usersAccessByWebsite = APIUsersManager::getInstance()->getUsersAccessFromSite($idSiteSelected);
             $defaultReportSiteName = Site::getNameFor($idSiteSelected);
@@ -79,18 +77,36 @@ class Controller extends Admin
 
         ksort($usersAccessByWebsite);
 
-        $users = array();
+        $users             = array();
+        $superUsers        = array();
         $usersAliasByLogin = array();
+
         if (Piwik::isUserHasSomeAdminAccess()) {
+            $view->showLastSeen = true;
+
             $users = APIUsersManager::getInstance()->getUsers();
-            foreach ($users as $user) {
+            foreach ($users as $index => $user) {
                 $usersAliasByLogin[$user['login']] = $user['alias'];
+
+                $lastSeen = LastSeenTimeLogger::getLastSeenTimeForUser($user['login']);
+                $users[$index]['last_seen'] = $lastSeen == 0
+                                            ? false : MetricsFormatter::getPrettyTimeFromSeconds(time() - $lastSeen);
+            }
+
+            if (Piwik::hasUserSuperUserAccess()) {
+                foreach ($users as $user) {
+                    if ($user['superuser_access']) {
+                        $superUsers[] = $user['login'];
+                    }
+                }
             }
         }
+
         $view->anonymousHasViewAccess = $this->hasAnonymousUserViewAccess($usersAccessByWebsite);
         $view->idSiteSelected = $idSiteSelected;
         $view->defaultReportSiteName = $defaultReportSiteName;
         $view->users = $users;
+        $view->superUserLogins = $superUsers;
         $view->usersAliasByLogin = $usersAliasByLogin;
         $view->usersCount = count($users) - 1;
         $view->usersAccessByWebsite = $usersAccessByWebsite;
@@ -98,7 +114,8 @@ class Controller extends Admin
         uasort($websites, array('Piwik\Plugins\UsersManager\Controller', 'orderByName'));
         $view->websites = $websites;
         $this->setBasicVariablesView($view);
-        echo $view->render();
+
+        return $view->render();
     }
 
     private function hasAnonymousUserViewAccess($usersAccessByWebsite)
@@ -135,15 +152,9 @@ class Controller extends Admin
         $view = new View('@UsersManager/userSettings');
 
         $userLogin = Piwik::getCurrentUserLogin();
-        if (Piwik::isUserIsSuperUser()) {
-            $view->userAlias = $userLogin;
-            $view->userEmail = Piwik::getSuperUserEmail();
-            $this->displayWarningIfConfigFileNotWritable($view);
-        } else {
-            $user = APIUsersManager::getInstance()->getUser($userLogin);
-            $view->userAlias = $user['alias'];
-            $view->userEmail = $user['email'];
-        }
+        $user = APIUsersManager::getInstance()->getUser($userLogin);
+        $view->userAlias = $user['alias'];
+        $view->userEmail = $user['email'];
 
         $defaultReport = APIUsersManager::getInstance()->getUserPreference($userLogin, APIUsersManager::PREFERENCE_DEFAULT_REPORT);
         if ($defaultReport === false) {
@@ -159,22 +170,25 @@ class Controller extends Admin
 
         $view->defaultDate = $this->getDefaultDateForUser($userLogin);
         $view->availableDefaultDates = array(
-            'today'      => Piwik_Translate('General_Today'),
-            'yesterday'  => Piwik_Translate('General_Yesterday'),
-            'previous7'  => Piwik_Translate('General_PreviousDays', 7),
-            'previous30' => Piwik_Translate('General_PreviousDays', 30),
-            'last7'      => Piwik_Translate('General_LastDays', 7),
-            'last30'     => Piwik_Translate('General_LastDays', 30),
-            'week'       => Piwik_Translate('General_CurrentWeek'),
-            'month'      => Piwik_Translate('General_CurrentMonth'),
-            'year'       => Piwik_Translate('General_CurrentYear'),
+            'today'      => Piwik::translate('General_Today'),
+            'yesterday'  => Piwik::translate('General_Yesterday'),
+            'previous7'  => Piwik::translate('General_PreviousDays', 7),
+            'previous30' => Piwik::translate('General_PreviousDays', 30),
+            'last7'      => Piwik::translate('General_LastDays', 7),
+            'last30'     => Piwik::translate('General_LastDays', 30),
+            'week'       => Piwik::translate('General_CurrentWeek'),
+            'month'      => Piwik::translate('General_CurrentMonth'),
+            'year'       => Piwik::translate('General_CurrentYear'),
         );
 
+        $view->languages = APILanguagesManager::getInstance()->getAvailableLanguageNames();
+        $view->currentLanguageCode = LanguagesManager::getLanguageCodeForCurrentUser();
         $view->ignoreCookieSet = IgnoreCookie::isIgnoreCookieFound();
         $this->initViewAnonymousUserSettings($view);
         $view->piwikHost = Url::getCurrentHost();
         $this->setBasicVariablesView($view);
-        echo $view->render();
+
+        return $view->render();
     }
 
     public function setIgnoreCookie()
@@ -193,7 +207,7 @@ class Controller extends Admin
      */
     protected function initViewAnonymousUserSettings($view)
     {
-        if (!Piwik::isUserIsSuperUser()) {
+        if (!Piwik::hasUserSuperUserAccess()) {
             return;
         }
         $userLogin = 'anonymous';
@@ -236,7 +250,7 @@ class Controller extends Admin
     {
         $response = new ResponseBuilder(Common::getRequestVar('format'));
         try {
-            Piwik::checkUserIsSuperUser();
+            Piwik::checkUserHasSuperUserAccess();
             $this->checkTokenInUrl();
 
             $anonymousDefaultReport = Common::getRequestVar('anonymousDefaultReport');
@@ -252,7 +266,8 @@ class Controller extends Admin
         } catch (Exception $e) {
             $toReturn = $response->getResponseException($e);
         }
-        echo $toReturn;
+
+        return $toReturn;
     }
 
     /**
@@ -265,65 +280,15 @@ class Controller extends Admin
         try {
             $this->checkTokenInUrl();
 
-            $alias = Common::getRequestVar('alias');
-            $email = Common::getRequestVar('email');
             $defaultReport = Common::getRequestVar('defaultReport');
             $defaultDate = Common::getRequestVar('defaultDate');
-
-            $newPassword = false;
-            $password = Common::getRequestvar('password', false);
-            $passwordBis = Common::getRequestvar('passwordBis', false);
-            if (!empty($password)
-                || !empty($passwordBis)
-            ) {
-                if ($password != $passwordBis) {
-                    throw new Exception(Piwik_Translate('Login_PasswordsDoNotMatch'));
-                }
-                $newPassword = $password;
-            }
-
-            // UI disables password change on invalid host, but check here anyway
-            if (!Url::isValidHost()
-                && $newPassword !== false
-            ) {
-                throw new Exception("Cannot change password with untrusted hostname!");
-            }
-
+            $language = Common::getRequestVar('language');
             $userLogin = Piwik::getCurrentUserLogin();
-            if (Piwik::isUserIsSuperUser()) {
-                $superUser = Config::getInstance()->superuser;
-                $updatedSuperUser = false;
 
-                if ($newPassword !== false) {
-                    $newPassword = Common::unsanitizeInputValue($newPassword);
-                    $md5PasswordSuperUser = md5($newPassword);
-                    $superUser['password'] = $md5PasswordSuperUser;
-                    $updatedSuperUser = true;
-                }
-                if ($superUser['email'] != $email) {
-                    $superUser['email'] = $email;
-                    $updatedSuperUser = true;
-                }
-                if ($updatedSuperUser) {
-                    Config::getInstance()->superuser = $superUser;
-                    Config::getInstance()->forceSave();
-                }
-            } else {
-                APIUsersManager::getInstance()->updateUser($userLogin, $newPassword, $email, $alias);
-                if ($newPassword !== false) {
-                    $newPassword = Common::unsanitizeInputValue($newPassword);
-                }
-            }
+            $this->processPasswordChange($userLogin);
 
-            // logs the user in with the new password
-            if ($newPassword !== false) {
-                $info = array(
-                    'login'       => $userLogin,
-                    'md5Password' => md5($newPassword),
-                    'rememberMe'  => false,
-                );
-                Piwik_PostEvent('Login.initSession', array($info));
-            }
+            LanguagesManager::setLanguageForSession($language);
+            APILanguagesManager::getInstance()->setLanguageForUser($userLogin, $language);
 
             APIUsersManager::getInstance()->setUserPreference($userLogin,
                 APIUsersManager::PREFERENCE_DEFAULT_REPORT,
@@ -335,6 +300,41 @@ class Controller extends Admin
         } catch (Exception $e) {
             $toReturn = $response->getResponseException($e);
         }
-        echo $toReturn;
+
+        return $toReturn;
+    }
+
+    private function processPasswordChange($userLogin)
+    {
+        $alias = Common::getRequestVar('alias');
+        $email = Common::getRequestVar('email');
+        $newPassword = false;
+        $password = Common::getRequestvar('password', false);
+        $passwordBis = Common::getRequestvar('passwordBis', false);
+        if (!empty($password)
+            || !empty($passwordBis)
+        ) {
+            if ($password != $passwordBis) {
+                throw new Exception(Piwik::translate('Login_PasswordsDoNotMatch'));
+            }
+            $newPassword = $password;
+        }
+
+        // UI disables password change on invalid host, but check here anyway
+        if (!Url::isValidHost()
+            && $newPassword !== false
+        ) {
+            throw new Exception("Cannot change password with untrusted hostname!");
+        }
+
+        APIUsersManager::getInstance()->updateUser($userLogin, $newPassword, $email, $alias);
+        if ($newPassword !== false) {
+            $newPassword = Common::unsanitizeInputValue($newPassword);
+        }
+
+        // logs the user in with the new password
+        if ($newPassword !== false) {
+            \Piwik\Registry::get('auth')->initSession($userLogin, md5($newPassword), $rememberMe = false);
+        }
     }
 }

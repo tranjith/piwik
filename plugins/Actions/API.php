@@ -5,23 +5,21 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik_Plugins
- * @package Actions
  */
 namespace Piwik\Plugins\Actions;
 
 use Exception;
+use Piwik\API\Request;
 use Piwik\Archive;
+use Piwik\Common;
+use Piwik\DataTable;
+use Piwik\Date;
 use Piwik\Metrics;
 use Piwik\Piwik;
-use Piwik\Common;
-use Piwik\Date;
-use Piwik\DataTable;
-use Piwik\Plugins\Actions\Actions;
-use Piwik\Tracker\Action;
-use Piwik\Plugins\Actions\Archiver;
-use Piwik\Plugins\Actions\ArchivingHelper;
 use Piwik\Plugins\CustomVariables\API as APICustomVariables;
+use Piwik\Tracker\Action;
+use Piwik\Tracker\ActionSiteSearch;
+use Piwik\Tracker\PageUrl;
 
 /**
  * The Actions API lets you request reports for all your Visitor Actions: Page URLs, Page titles (Piwik Events),
@@ -35,23 +33,10 @@ use Piwik\Plugins\CustomVariables\API as APICustomVariables;
  * and an outlink via "getOutlink".
  *
  * Note: pageName, pageUrl, outlinkUrl, downloadUrl parameters must be URL encoded before you call the API.
- * @package Actions
+ * @method static \Piwik\Plugins\Actions\API getInstance()
  */
-class API
+class API extends \Piwik\Plugin\API
 {
-    static private $instance = null;
-
-    /**
-     * @return \Piwik\Plugins\Actions\API
-     */
-    static public function getInstance()
-    {
-        if (self::$instance == null) {
-            self::$instance = new self;
-        }
-        return self::$instance;
-    }
-
     /**
      * Returns the list of metrics (pages, downloads, outlinks)
      *
@@ -120,11 +105,11 @@ class API
     }
 
     /**
-     * @param int      $idSite
-     * @param string   $period
-     * @param Date     $date
-     * @param bool     $segment
-     * @param bool     $expanded
+     * @param int $idSite
+     * @param string $period
+     * @param Date $date
+     * @param bool $segment
+     * @param bool $expanded
      * @param bool|int $idSubtable
      * @param bool|int $depth
      *
@@ -133,8 +118,7 @@ class API
     public function getPageUrls($idSite, $period, $date, $segment = false, $expanded = false, $idSubtable = false,
                                 $depth = false)
     {
-        $dataTable = Archive::getDataTableFromArchive(
-            'Actions_actions_url', $idSite, $period, $date, $segment, $expanded, $idSubtable, $depth);
+        $dataTable = $this->getDataTableFromArchive('Actions_actions_url', $idSite, $period, $date, $segment, $expanded, $idSubtable, $depth);
         $this->filterPageDatatable($dataTable);
         $this->filterActionsDataTable($dataTable, $expanded);
         return $dataTable;
@@ -181,9 +165,11 @@ class API
     {
         // Keep only pages which are following site search
         $dataTable->filter('ColumnCallbackDeleteRow', array(
-                                                           'nb_hits_following_search',
-                                                           function($value) { return $value > 0; }
-                                                      ));
+            'nb_hits_following_search',
+            function ($value) {
+                return $value <= 0;
+            }
+        ));
     }
 
     /**
@@ -211,7 +197,7 @@ class API
     public function getPageUrl($pageUrl, $idSite, $period, $date, $segment = false)
     {
         $callBackParameters = array('Actions_actions_url', $idSite, $period, $date, $segment, $expanded = false, $idSubtable = false);
-        $dataTable = $this->getFilterPageDatatableSearch($callBackParameters, $pageUrl, Action::TYPE_ACTION_URL);
+        $dataTable = $this->getFilterPageDatatableSearch($callBackParameters, $pageUrl, Action::TYPE_PAGE_URL);
         $this->filterPageDatatable($dataTable);
         $this->filterActionsDataTable($dataTable);
         return $dataTable;
@@ -219,7 +205,7 @@ class API
 
     public function getPageTitles($idSite, $period, $date, $segment = false, $expanded = false, $idSubtable = false)
     {
-        $dataTable = Archive::getDataTableFromArchive('Actions_actions', $idSite, $period, $date, $segment, $expanded, $idSubtable);
+        $dataTable = $this->getDataTableFromArchive('Actions_actions', $idSite, $period, $date, $segment, $expanded, $idSubtable);
         $this->filterPageDatatable($dataTable);
         $this->filterActionsDataTable($dataTable, $expanded);
         return $dataTable;
@@ -252,7 +238,7 @@ class API
     public function getPageTitle($pageName, $idSite, $period, $date, $segment = false)
     {
         $callBackParameters = array('Actions_actions', $idSite, $period, $date, $segment, $expanded = false, $idSubtable = false);
-        $dataTable = $this->getFilterPageDatatableSearch($callBackParameters, $pageName, Action::TYPE_ACTION_NAME);
+        $dataTable = $this->getFilterPageDatatableSearch($callBackParameters, $pageName, Action::TYPE_PAGE_TITLE);
         $this->filterPageDatatable($dataTable);
         $this->filterActionsDataTable($dataTable);
         return $dataTable;
@@ -260,7 +246,7 @@ class API
 
     public function getDownloads($idSite, $period, $date, $segment = false, $expanded = false, $idSubtable = false)
     {
-        $dataTable = Archive::getDataTableFromArchive('Actions_downloads', $idSite, $period, $date, $segment, $expanded, $idSubtable);
+        $dataTable = $this->getDataTableFromArchive('Actions_downloads', $idSite, $period, $date, $segment, $expanded, $idSubtable);
         $this->filterActionsDataTable($dataTable, $expanded);
         return $dataTable;
     }
@@ -275,7 +261,7 @@ class API
 
     public function getOutlinks($idSite, $period, $date, $segment = false, $expanded = false, $idSubtable = false)
     {
-        $dataTable = Archive::getDataTableFromArchive('Actions_outlink', $idSite, $period, $date, $segment, $expanded, $idSubtable);
+        $dataTable = $this->getDataTableFromArchive('Actions_outlink', $idSite, $period, $date, $segment, $expanded, $idSubtable);
         $this->filterActionsDataTable($dataTable, $expanded);
         return $dataTable;
     }
@@ -311,7 +297,7 @@ class API
 
     protected function getSiteSearchKeywordsRaw($idSite, $period, $date, $segment)
     {
-        $dataTable = Archive::getDataTableFromArchive('Actions_sitesearch', $idSite, $period, $date, $segment, $expanded = false);
+        $dataTable = $this->getDataTableFromArchive('Actions_sitesearch', $idSite, $period, $date, $segment, $expanded = false);
         return $dataTable;
     }
 
@@ -321,8 +307,10 @@ class API
         // Delete all rows that have some results
         $dataTable->filter('ColumnCallbackDeleteRow',
             array(
-                 Metrics::INDEX_SITE_SEARCH_HAS_NO_RESULT,
-                 function($value) { return $value >= 1; }
+                Metrics::INDEX_SITE_SEARCH_HAS_NO_RESULT,
+                function ($value) {
+                    return $value < 1;
+                }
             ));
         $dataTable->deleteRow(DataTable::ID_SUMMARY_ROW);
         $dataTable->deleteColumn(Metrics::INDEX_SITE_SEARCH_HAS_NO_RESULT);
@@ -345,7 +333,7 @@ class API
         Actions::checkCustomVariablesPluginEnabled();
         $customVariables = APICustomVariables::getInstance()->getCustomVariables($idSite, $period, $date, $segment, $expanded = false, $_leavePiwikCoreVariables = true);
 
-        $customVarNameToLookFor = Action::CVAR_KEY_SEARCH_CATEGORY;
+        $customVarNameToLookFor = ActionSiteSearch::CVAR_KEY_SEARCH_CATEGORY;
 
         $dataTable = new DataTable();
         // Handle case where date=last30&period=day
@@ -353,14 +341,16 @@ class API
         if ($customVariables instanceof DataTable\Map) {
             $dataTable = $customVariables->getEmptyClone();
 
-            $customVariableDatatables = $customVariables->getArray();
-            $dataTables = $dataTable->getArray();
+            $customVariableDatatables = $customVariables->getDataTables();
+            $dataTables = $dataTable->getDataTables();
             foreach ($customVariableDatatables as $key => $customVariableTableForDate) {
                 // we do not enter the IF, in the case idSite=1,3 AND period=day&date=datefrom,dateto,
-                if (isset($customVariableTableForDate->metadata['period'])) {
+                if ($customVariableTableForDate instanceof DataTable
+                    && $customVariableTableForDate->getMetadata(Archive\DataTableFactory::TABLE_METADATA_PERIOD_INDEX)
+                ) {
                     $row = $customVariableTableForDate->getRowFromLabel($customVarNameToLookFor);
                     if ($row) {
-                        $dateRewrite = $customVariableTableForDate->metadata['period']->getDateStart()->toString();
+                        $dateRewrite = $customVariableTableForDate->getMetadata(Archive\DataTableFactory::TABLE_METADATA_PERIOD_INDEX)->getDateStart()->toString();
                         $idSubtable = $row->getIdSubDataTable();
                         $categories = APICustomVariables::getInstance()->getCustomVariablesValuesFromNameId($idSite, $period, $dateRewrite, $idSubtable, $segment);
                         $dataTable->addTable($categories, $key);
@@ -388,12 +378,12 @@ class API
     {
         if ($searchTree === false) {
             // build the query parts that are searched inside the tree
-            if ($actionType == Action::TYPE_ACTION_NAME) {
+            if ($actionType == Action::TYPE_PAGE_TITLE) {
                 $searchedString = Common::unsanitizeInputValue($search);
             } else {
                 $idSite = $callBackParameters[1];
                 try {
-                    $searchedString = Action::excludeQueryParametersFromUrl($search, $idSite);
+                    $searchedString = PageUrl::excludeQueryParametersFromUrl($search, $idSite);
                 } catch (Exception $e) {
                     $searchedString = $search;
                 }
@@ -404,21 +394,21 @@ class API
 
         if ($table === false) {
             // fetch the data table
-            $table = call_user_func_array(array('Piwik\Archive', 'getDataTableFromArchive'), $callBackParameters);
+            $table = call_user_func_array(array($this, 'getDataTableFromArchive'), $callBackParameters);
 
             if ($table instanceof DataTable\Map) {
                 // search an array of tables, e.g. when using date=last30
                 // note that if the root is an array, we filter all children
                 // if an array occurs inside the nested table, we only look for the first match (see below)
-                $newTableArray = $table->getEmptyClone();
+                $dataTableMap = $table->getEmptyClone();
 
-                foreach ($table->getArray() as $label => $subTable) {
+                foreach ($table->getDataTables() as $label => $subTable) {
                     $newSubTable = $this->doFilterPageDatatableSearch($callBackParameters, $subTable, $searchTree);
 
-                    $newTableArray->addTable($newSubTable, $label);
+                    $dataTableMap->addTable($newSubTable, $label);
                 }
 
-                return $newTableArray;
+                return $dataTableMap;
             }
         }
 
@@ -432,7 +422,7 @@ class API
     {
         // filter a data table array
         if ($table instanceof DataTable\Map) {
-            foreach ($table->getArray() as $subTable) {
+            foreach ($table->getDataTables() as $subTable) {
                 $filteredSubTable = $this->doFilterPageDatatableSearch($callBackParameters, $subTable, $searchTree);
 
                 if ($filteredSubTable->getRowsCount() > 0) {
@@ -453,7 +443,7 @@ class API
             if ($row === false) {
                 // not found
                 $result = new DataTable;
-                $result->metadata = $table->metadata;
+                $result->setAllTableMetadata($table->getAllTableMetadata());
                 return $result;
             }
 
@@ -461,14 +451,14 @@ class API
             if (count($searchTree) == 0) {
                 $result = new DataTable();
                 $result->addRow($row);
-                $result->metadata = $table->metadata;
+                $result->setAllTableMetadata($table->getAllTableMetadata());
                 return $result;
             }
 
             // match found on this level and more levels remaining: go deeper
             $idSubTable = $row->getIdSubDataTable();
             $callBackParameters[6] = $idSubTable;
-            $table = call_user_func_array(array('Piwik\Archive', 'getDataTableFromArchive'), $callBackParameters);
+            $table = call_user_func_array(array($this, 'getDataTableFromArchive'), $callBackParameters);
             return $this->doFilterPageDatatableSearch($callBackParameters, $table, $searchTree);
         }
 
@@ -482,21 +472,43 @@ class API
      */
     protected function filterPageDatatable($dataTable)
     {
+        $columnsToRemove = array('bounce_rate');
+        $dataTable->queueFilter('ColumnDelete', array($columnsToRemove));
+
         // Average time on page = total time on page / number visits on that page
-        $dataTable->queueFilter('ColumnCallbackAddColumnQuotient', array('avg_time_on_page', 'sum_time_spent', 'nb_visits', 0));
+        $dataTable->queueFilter('ColumnCallbackAddColumnQuotient',
+            array('avg_time_on_page',
+                  'sum_time_spent',
+                  'nb_visits',
+                  0)
+        );
 
         // Bounce rate = single page visits on this page / visits started on this page
-        $dataTable->queueFilter('ColumnCallbackAddColumnPercentage', array('bounce_rate', 'entry_bounce_count', 'entry_nb_visits', 0));
+        $dataTable->queueFilter('ColumnCallbackAddColumnPercentage',
+            array('bounce_rate',
+                  'entry_bounce_count',
+                  'entry_nb_visits',
+                  0));
 
         // % Exit = Number of visits that finished on this page / visits on this page
-        $dataTable->queueFilter('ColumnCallbackAddColumnPercentage', array('exit_rate', 'exit_nb_visits', 'nb_visits', 0));
+        $dataTable->queueFilter('ColumnCallbackAddColumnPercentage',
+            array('exit_rate',
+                  'exit_nb_visits',
+                  'nb_visits',
+                  0)
+        );
 
         // Handle performance analytics
         $hasTimeGeneration = (array_sum($dataTable->getColumn(Metrics::INDEX_PAGE_SUM_TIME_GENERATION)) > 0);
         if ($hasTimeGeneration) {
             // Average generation time = total generation time / number of pageviews
             $precisionAvgTimeGeneration = 3;
-            $dataTable->queueFilter('ColumnCallbackAddColumnQuotient', array('avg_time_generation', 'sum_time_generation', 'nb_hits_with_time_generation', $precisionAvgTimeGeneration));
+            $dataTable->queueFilter('ColumnCallbackAddColumnQuotient',
+                array('avg_time_generation',
+                      'sum_time_generation',
+                      'nb_hits_with_time_generation',
+                      $precisionAvgTimeGeneration)
+            );
             $dataTable->queueFilter('ColumnDelete', array(array('sum_time_generation')));
         } else {
             // No generation time: remove it from the API output and add it to empty_columns metadata, so that
@@ -545,7 +557,13 @@ class API
      */
     private function filterNonEntryActions($dataTable)
     {
-        $dataTable->filter('ColumnCallbackDeleteRow', array('entry_nb_visits', 'strlen'));
+        $dataTable->filter('ColumnCallbackDeleteRow',
+            array('entry_nb_visits',
+                  function ($visits) {
+                      return !strlen($visits);
+                  }
+            )
+        );
     }
 
     /**
@@ -555,7 +573,24 @@ class API
      */
     private function filterNonExitActions($dataTable)
     {
-        $dataTable->filter('ColumnCallbackDeleteRow', array('exit_nb_visits', 'strlen'));
+        $dataTable->filter('ColumnCallbackDeleteRow',
+            array('exit_nb_visits',
+                  function ($visits) {
+                      return !strlen($visits);
+                  })
+        );
+    }
+
+    protected function getDataTableFromArchive($name, $idSite, $period, $date, $segment, $expanded = false, $idSubtable = null, $depth = null)
+    {
+        $skipAggregationOfSubTables = false;
+        if ($period == 'range'
+            && empty($idSubtable)
+            && empty($expanded)
+            && !Request::shouldLoadFlatten()
+        ) {
+            $skipAggregationOfSubTables = false;
+        }
+        return Archive::getDataTableFromArchive($name, $idSite, $period, $date, $segment, $expanded, $idSubtable, $skipAggregationOfSubTables, $depth);
     }
 }
-

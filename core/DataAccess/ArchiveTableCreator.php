@@ -5,8 +5,6 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Piwik
  */
 
 namespace Piwik\DataAccess;
@@ -14,8 +12,8 @@ namespace Piwik\DataAccess;
 use Exception;
 use Piwik\Common;
 use Piwik\Date;
-use Piwik\DbHelper;
 use Piwik\Db;
+use Piwik\DbHelper;
 
 class ArchiveTableCreator
 {
@@ -51,7 +49,7 @@ class ArchiveTableCreator
         }
 
         if (!in_array($tableName, self::$tablesAlreadyInstalled)) {
-            $db = Db::get();
+            $db  = Db::get();
             $sql = DbHelper::getTableCreateSql($tableNamePrefix);
 
             // replace table name template by real name

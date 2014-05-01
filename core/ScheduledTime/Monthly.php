@@ -5,8 +5,6 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Piwik
  */
 namespace Piwik\ScheduledTime;
 
@@ -17,11 +15,15 @@ use Piwik\ScheduledTime;
  * Monthly class is used to schedule tasks every month.
  *
  * @see ScheduledTask
- * @package Piwik
- * @subpackage ScheduledTime
+ *
  */
 class Monthly extends ScheduledTime
 {
+    /**
+     * List of available week number strings used in setDayOfWeekFromString.
+     */
+    private static $weekNumberStringToInt = array('first' => 0, 'second' => 1, 'third' => 2, 'fourth' => 3);
+
     /**
      * Day of the week for scheduled time.
      *
@@ -35,6 +37,26 @@ class Monthly extends ScheduledTime
      * @var int
      */
     private $week = null;
+
+    public function setDayOfWeekFromString($day)
+    {
+        @list($weekNumberString, $dayNumberString) = explode(' ', $day);
+
+        // get day number
+        $day = Weekly::getDayIntFromString($dayNumberString) % 7;
+
+        // get week number
+        $week = false;
+        $weekNumberString = strtolower($weekNumberString);
+        if (isset(self::$weekNumberStringToInt[$weekNumberString])) {
+            $week = self::$weekNumberStringToInt[$weekNumberString];
+        } else {
+            throw new Exception("Invalid week describer in ScheduledTime\\Monthly::setDayOfWeekFromString: '$weekNumberString'. "
+                              . "Supported values are 'first', 'second', 'third', 'fourth'.");
+        }
+
+        $this->setDayOfWeek($day, $week);
+    }
 
     /**
      * @return int
@@ -82,6 +104,7 @@ class Monthly extends ScheduledTime
 
         // Adjusts the scheduled hour
         $rescheduledTime = $this->adjustHour($rescheduledTime);
+        $rescheduledTime = $this->adjustTimezone($rescheduledTime);
 
         return $rescheduledTime;
     }

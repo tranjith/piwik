@@ -5,18 +5,16 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik_Plugins
- * @package ImageGraph
  */
 namespace Piwik\Plugins\ImageGraph;
 
 use Piwik\Common;
 use Piwik\Piwik;
-use Piwik\Plugins\API\API;
+use Piwik\Plugins\API\API as APIPlugins;
 use Piwik\SettingsPiwik;
 use Piwik\View;
 
-class Controller extends \Piwik\Controller
+class Controller extends \Piwik\Plugin\Controller
 {
     // Call metadata reports, and draw the default graph for each report.
     public function index()
@@ -26,7 +24,7 @@ class Controller extends \Piwik\Controller
         $period = Common::getRequestVar('period', 'day', 'string');
         $date = Common::getRequestVar('date', 'today', 'string');
         $_GET['token_auth'] = Piwik::getCurrentUserTokenAuth();
-        $reports = API::getInstance()->getReportMetadata($idSite, $period, $date);
+        $reports = APIPlugins::getInstance()->getReportMetadata($idSite, $period, $date);
         $plot = array();
         foreach ($reports as $report) {
             if (!empty($report['imageGraphUrl'])) {
@@ -40,13 +38,13 @@ class Controller extends \Piwik\Controller
         }
         $view = new View('@ImageGraph/index');
         $view->titleAndUrls = $plot;
-        echo $view->render();
+        return $view->render();
     }
 
     // Draw graphs for all sizes (DEBUG)
     public function testAllSizes()
     {
-        Piwik::checkUserIsSuperUser();
+        Piwik::checkUserHasSuperUserAccess();
 
         $view = new View('@ImageGraph/testAllSizes');
         $this->setGeneralVariablesView($view);
@@ -55,7 +53,7 @@ class Controller extends \Piwik\Controller
         $date = Common::getRequestVar('date', 'today', 'string');
 
         $_GET['token_auth'] = Piwik::getCurrentUserTokenAuth();
-        $availableReports = API::getInstance()->getReportMetadata($this->idSite, $period, $date);
+        $availableReports = APIPlugins::getInstance()->getReportMetadata($this->idSite, $period, $date);
         $view->availableReports = $availableReports;
         $view->graphTypes = array(
             '', // default graph type
@@ -73,6 +71,6 @@ class Controller extends \Piwik\Controller
             array(800, 150), // landscape mode
             array(600, 300, $fontSize = 18, 300, 150), // iphone requires bigger font, then it will be scaled down by ios
         );
-        echo $view->render();
+        return $view->render();
     }
 }

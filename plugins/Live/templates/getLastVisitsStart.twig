@@ -24,9 +24,9 @@
                 </span>
                 {% endif %}
                 {% if visitor.visitorTypeIcon %}
-                    &nbsp;- <img src="{{ visitor.visitorTypeIcon }}" title="{{ 'General_ReturningVisitor'|translate }} - {{ 'Live_ViewVisitorProfile'|translate }}"/>
+                    &nbsp;- <img src="{{ visitor.visitorTypeIcon }}" title="{{ 'General_ReturningVisitor'|translate }}"/>
                 {% endif %}
-                {% if visitor.visitorId is defined %}
+                {% if visitor.visitorId|default(false) is not empty %}
                 <a class="visits-live-launch-visitor-profile rightLink" title="{{ 'Live_ViewVisitorProfile'|translate }}" data-visitor-id="{{ visitor.visitorId }}">
                     <img src="plugins/Live/images/visitorProfileLaunch.png"/>
                 </a>
@@ -36,7 +36,7 @@
                 {% endif %}
             </div>
             <!--<div class="settings"></div>-->
-            <div class="referer">
+            <div class="referrer">
                 {% if visitor.referrerType != 'direct' %}
                     {{ 'General_FromReferrer'|translate }}
                     {% if visitor.referrerUrl is not empty %}
@@ -59,7 +59,7 @@
                         </span>
                     {% endif %}
                 {% else %}
-                    {{ 'Referers_DirectEntry'|translate }}
+                    {{ 'Referrers_DirectEntry'|translate }}
                 {% endif %}
             </div>
             <div id="{{ visitor.idVisit }}_actions" class="settings">
@@ -83,17 +83,17 @@
                                     {% endset %}
                                     {{ 'Goals_LeftInCart'|translate(revenueLeft) }}:
                                 {% endif %}
-                                {{ action.revenue|money(idSite) }} - {{ action.serverTimePretty }}
+                                {{ action.revenue|money(idSite)|raw }} - {{ action.serverTimePretty }}
                                 {% if action.itemDetails is not empty %}
                                     {% for product in action.itemDetails %}
-                                    # {{ product.itemSKU }}{% if product.itemName is not empty %}: {{ product.itemName }}{% endif %}{% if product.itemCategory is not empty %} ({{ product.itemCategory }}){% endif %}, {{ 'General_Quantity'|translate }}: {{ product.quantity }}, {{ 'General_Price'|translate }}: {{ product.price|money(idSite) }}
+                                    # {{ product.itemSKU }}{% if product.itemName is not empty %}: {{ product.itemName }}{% endif %}{% if product.itemCategory is not empty %} ({{ product.itemCategory }}){% endif %}, {{ 'General_Quantity'|translate }}: {{ product.quantity }}, {{ 'General_Price'|translate }}: {{ product.price|money(idSite)|raw }}
                                     {% endfor %}
                                 {% endif %}
                             {% endset %}
                             <span title="{{ title }}">
 						        <img class='iconPadding' src="{{ action.icon }}"/>
                                 {% if action.type == 'ecommerceOrder' %}
-                                    {{ 'General_ColumnRevenue'|translate }}: {{ action.revenue|money(idSite) }}
+                                    {{ 'General_ColumnRevenue'|translate }}: {{ action.revenue|money(idSite)|raw }}
                                 {% endif %}
                             </span>
                         {% else %}
@@ -103,25 +103,26 @@
                             {% endif %}
                             <a href="{{ action.url }}" target="_blank">
                                 {% if action.type == 'action' %}
-                                    {% set title %}
-                                        {% if action.pageTitle is not empty %}
-                                            {{ action.pageTitle }}
-                                        {% endif %}
-                                        - {{ action.serverTimePretty }}
-                                        {% if action.timeSpentPretty is defined %}
-                                            - {{ 'General_TimeOnPage'|translate }}: {{ action.timeSpentPretty }}
-                                        {% endif %}
-                                    {% endset %}
-                                    <img src="plugins/Live/images/file{{ col }}.png" title="{{ title }}"/>
+{# white spacing matters as Chrome tooltip display whitespaces #}
+{% set title %}
+{% if action.pageTitle is not empty %}{{ action.pageTitle }}{% endif %}
+
+{{ action.serverTimePretty }}
+{% if action.timeSpentPretty is defined %}{{ 'General_TimeOnPage'|translate }}: {{ action.timeSpentPretty|raw }}{% endif %}
+{%- endset %}
+                                    <img src="plugins/Live/images/file{{ col }}.png" title="{{- title -}}"/>
                                 {% elseif action.type == 'outlink' or action.type == 'download' %}
                                     <img class='iconPadding' src="{{ action.icon }}"
                                          title="{{ action.url }} - {{ action.serverTimePretty }}"/>
                                 {% elseif action.type == 'search' %}
                                     <img class='iconPadding' src="{{ action.icon }}"
                                          title="{{ 'Actions_SubmenuSitesearch'|translate }}: {{ action.siteSearchKeyword }} - {{ action.serverTimePretty }}"/>
+                                {% elseif action.eventCategory|default(false) is not empty %}
+                                    <img  class="iconPadding" src='{{ action.icon }}'
+                                        title="{{ 'Events_Event'|translate }} {{ action.eventCategory }} - {{ action.eventAction }} {% if action.eventName is defined %}- {{ action.eventName }}{% endif %} {% if action.eventValue is defined %}- {{ action.eventValue }}{% endif %}"/>
                                 {% else %}
                                     <img class='iconPadding' src="{{ action.icon }}"
-                                         title="{{ action.goalName }} - {% if action.revenue > 0 %}{{ 'General_ColumnRevenue'|translate }}: {{ action.revenue|money(idSite) }} - {% endif %} {{ action.serverTimePretty }}"/>
+                                         title="{{ action.goalName }} - {% if action.revenue > 0 %}{{ 'General_ColumnRevenue'|translate }}: {{ action.revenue|money(idSite)|raw }} - {% endif %} {{ action.serverTimePretty }}"/>
                                 {% endif %}
                             </a>
                         {% endif %}

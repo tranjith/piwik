@@ -5,40 +5,40 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik_Plugins
- * @package Provider
  */
 namespace Piwik\Plugins\Provider;
 
 use Exception;
+use Piwik\ArchiveProcessor;
 use Piwik\Common;
+use Piwik\Config;
+
+use Piwik\Db;
 use Piwik\FrontController;
 use Piwik\IP;
-use Piwik\ArchiveProcessor;
-use Piwik\Db;
-use Piwik\Plugins\Provider\Archiver;
+use Piwik\Menu\MenuMain;
+use Piwik\Piwik;
+use Piwik\Plugin\ViewDataTable;
+use Piwik\Plugins\PrivacyManager\Config as PrivacyManagerConfig;
 use Piwik\WidgetsList;
 
 /**
  *
- * @package Provider
  */
 class Provider extends \Piwik\Plugin
 {
     /**
-     * @see Piwik_Plugin::getListHooksRegistered
+     * @see Piwik\Plugin::getListHooksRegistered
      */
     public function getListHooksRegistered()
     {
         $hooks = array(
-            'ArchiveProcessing_Day.compute'            => 'archiveDay',
-            'ArchiveProcessing_Period.compute'         => 'archivePeriod',
-            'Tracker.newVisitorInformation'            => 'logProviderInfo',
-            'WidgetsList.add'                          => 'addWidget',
-            'Menu.add'                                 => 'addMenu',
-            'API.getReportMetadata'                    => 'getReportMetadata',
-            'API.getSegmentsMetadata'                  => 'getSegmentsMetadata',
-            'ViewDataTable.getReportDisplayProperties' => 'getReportDisplayProperties',
+            'Tracker.newVisitorInformation'   => 'enrichVisitWithProviderInfo',
+            'WidgetsList.addWidgets'          => 'addWidget',
+            'Menu.Reporting.addItems'         => 'addMenu',
+            'API.getReportMetadata'           => 'getReportMetadata',
+            'API.getSegmentDimensionMetadata' => 'getSegmentsMetadata',
+            'ViewDataTable.configure'         => 'configureViewDataTable',
         );
         return $hooks;
     }
@@ -46,12 +46,12 @@ class Provider extends \Piwik\Plugin
     public function getReportMetadata(&$reports)
     {
         $reports[] = array(
-            'category'      => Piwik_Translate('General_Visitors'),
-            'name'          => Piwik_Translate('Provider_ColumnProvider'),
+            'category'      => Piwik::translate('General_Visitors'),
+            'name'          => Piwik::translate('Provider_ColumnProvider'),
             'module'        => 'Provider',
             'action'        => 'getProvider',
-            'dimension'     => Piwik_Translate('Provider_ColumnProvider'),
-            'documentation' => Piwik_Translate('Provider_ProviderReportDocumentation', '<br />'),
+            'dimension'     => Piwik::translate('Provider_ColumnProvider'),
+            'documentation' => Piwik::translate('Provider_ProviderReportDocumentation', '<br />'),
             'order'         => 50
         );
     }
@@ -61,7 +61,7 @@ class Provider extends \Piwik\Plugin
         $segments[] = array(
             'type'           => 'dimension',
             'category'       => 'Visit Location',
-            'name'           => Piwik_Translate('Provider_ColumnProvider'),
+            'name'           => Piwik::translate('Provider_ColumnProvider'),
             'segment'        => 'provider',
             'acceptedValues' => 'comcast.net, proxad.net, etc.',
             'sqlSegment'     => 'log_visit.location_provider'
@@ -97,26 +97,27 @@ class Provider extends \Piwik\Plugin
 
     public function addMenu()
     {
-        Piwik_RenameMenuEntry('General_Visitors', 'UserCountry_SubmenuLocations',
+        MenuMain::getInstance()->rename('General_Visitors', 'UserCountry_SubmenuLocations',
             'General_Visitors', 'Provider_SubmenuLocationsProvider');
     }
 
     public function postLoad()
     {
-        Piwik_AddAction('template_footerUserCountry', array('Piwik\Plugins\Provider\Provider', 'footerUserCountry'));
+        Piwik::addAction('Template.footerUserCountry', array('Piwik\Plugins\Provider\Provider', 'footerUserCountry'));
     }
 
     /**
      * Logs the provider in the log_visit table
      */
-    public function logProviderInfo(&$visitorInfo)
+    public function enrichVisitWithProviderInfo(&$visitorInfo, \Piwik\Tracker\Request $request)
     {
         // if provider info has already been set, abort
         if (!empty($visitorInfo['location_provider'])) {
             return;
         }
 
-        $ip = IP::N2P($visitorInfo['location_ip']);
+        $privacyConfig = new PrivacyManagerConfig();
+        $ip = IP::N2P($privacyConfig->useAnonymizedIpForVisitEnrichment ? $visitorInfo['location_ip'] : $request->getIp());
 
         // In case the IP was anonymized, we should not continue since the DNS reverse lookup will fail and this will slow down tracking
         if (substr($ip, -2, 2) == '.0') {
@@ -162,7 +163,27 @@ class Provider extends \Piwik\Plugin
             return 'Ip';
         } else {
             $cleanHostname = null;
-            Piwik_PostEvent('Provider.getCleanHostname', array(&$cleanHostname, $hostname));
+
+            /**
+             * Triggered when prettifying a hostname string.
+             * 
+             * This event can be used to customize the way a hostname is displayed in the 
+             * Providers report.
+             *
+             * **Example**
+             * 
+             *     public function getCleanHostname(&$cleanHostname, $hostname)
+             *     {
+             *         if ('fvae.VARG.ceaga.site.co.jp' == $hostname) {
+             *             $cleanHostname = 'site.co.jp';
+             *         }
+             *     }
+             * 
+             * @param string &$cleanHostname The hostname string to display. Set by the event
+             *                               handler.
+             * @param string $hostname The full hostname.
+             */
+            Piwik::postEvent('Provider.getCleanHostname', array(&$cleanHostname, $hostname));
             if ($cleanHostname !== null) {
                 return $cleanHostname;
             }
@@ -193,40 +214,23 @@ class Provider extends \Piwik\Plugin
     static public function footerUserCountry(&$out)
     {
         $out = '<div>
-			<h2>' . Piwik_Translate('Provider_WidgetProviders') . '</h2>';
+			<h2>' . Piwik::translate('Provider_WidgetProviders') . '</h2>';
         $out .= FrontController::getInstance()->fetchDispatch('Provider', 'getProvider');
         $out .= '</div>';
     }
 
-    /**
-     * Daily archive: processes the report Visits by Provider
-     */
-    public function archiveDay(ArchiveProcessor\Day $archiveProcessor)
+    public function configureViewDataTable(ViewDataTable $view)
     {
-        $archiving = new Archiver($archiveProcessor);
-        if ($archiving->shouldArchive()) {
-            $archiving->archiveDay();
+        switch ($view->requestConfig->apiMethodToRequestDataTable) {
+            case 'Provider.getProvider':
+                $this->configureViewForGetProvider($view);
+                break;
         }
     }
 
-    public function archivePeriod(ArchiveProcessor\Period $archiveProcessor)
+    private function configureViewForGetProvider(ViewDataTable $view)
     {
-        $archiving = new Archiver($archiveProcessor);
-        if ($archiving->shouldArchive()) {
-            $archiving->archivePeriod();
-        }
-    }
-
-    public function getReportDisplayProperties(&$properties)
-    {
-        $properties['Provider.getProvider'] = $this->getDisplayPropertiesForGetProvider();
-    }
-
-    private function getDisplayPropertiesForGetProvider()
-    {
-        return array(
-            'translations' => array('label' => Piwik_Translate('Provider_ColumnProvider')),
-            'filter_limit' => 5
-        );
+        $view->requestConfig->filter_limit = 5;
+        $view->config->addTranslation('label', Piwik::translate('Provider_ColumnProvider'));
     }
 }

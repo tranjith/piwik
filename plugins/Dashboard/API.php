@@ -4,8 +4,6 @@
  *
  * @link     http://piwik.org
  * @license  http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
- * @category Piwik_Plugins
- * @package  Dashboard
  */
 namespace Piwik\Plugins\Dashboard;
 
@@ -15,32 +13,15 @@ use Piwik\WidgetsList;
 /**
  * This API is the <a href='http://piwik.org/docs/analytics-api/reference/' target='_blank'>Dashboard API</a>: it gives information about dashboards.
  *
- * @package Piwik_API
+ * @method static \Piwik\Plugins\Dashboard\API getInstance()
  */
-class API
+class API extends \Piwik\Plugin\API
 {
-    /**
-     * @var \Piwik\Plugins\Dashboard\API
-     */
-    static private $instance = null;
-
     private $dashboard = null;
 
-    public function __construct()
+    protected function __construct()
     {
         $this->dashboard = new Dashboard();
-    }
-
-    /**
-     * @return \Piwik\Plugins\Dashboard\API
-     */
-    static public function getInstance()
-    {
-        if (null == self::$instance) {
-            self::$instance = new self;
-        }
-
-        return self::$instance;
     }
 
     /**
@@ -70,7 +51,7 @@ class API
         $defaultLayout = $this->dashboard->getDefaultLayout();
         $defaultLayout = $this->dashboard->decodeLayout($defaultLayout);
 
-        $defaultDashboard = array('name' => Piwik_Translate('Dashboard_Dashboard'), 'layout' => $defaultLayout);
+        $defaultDashboard = array('name' => Piwik::translate('Dashboard_Dashboard'), 'layout' => $defaultLayout);
 
         $widgets = $this->getExistingWidgetsWithinDashboard($defaultDashboard);
 

@@ -5,30 +5,23 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Piwik
  */
 namespace Piwik\API;
 
 use Exception;
 use Piwik\API\DataTableManipulator\Flattener;
 use Piwik\API\DataTableManipulator\LabelFilter;
-use Piwik\API\DataTableGenericFilter;
-use Piwik\DataTable\Renderer\Json;
-use Piwik\DataTable\Simple;
-use Piwik\DataTable\Renderer;
-use Piwik\Piwik;
+use Piwik\API\DataTableManipulator\ReportTotalsCalculator;
 use Piwik\Common;
+use Piwik\DataTable\Renderer\Json;
+use Piwik\DataTable\Renderer;
+use Piwik\DataTable\Simple;
 use Piwik\DataTable;
 
 /**
- * @package Piwik
- * @subpackage Piwik_API
  */
 class ResponseBuilder
 {
-    const DISPLAY_BACKTRACE_DEBUG = false;
-
     private $request = null;
     private $outputFormat = null;
 
@@ -67,9 +60,9 @@ class ResponseBuilder
      *
      * - If an integer / float is returned, we simply return it
      *
-     * @param mixed $value      The initial returned value, before post process. If set to null, success response is returned.
-     * @param bool|string $apiModule  The API module that was called
-     * @param bool|string $apiMethod  The API method that was called
+     * @param mixed $value The initial returned value, before post process. If set to null, success response is returned.
+     * @param bool|string $apiModule The API module that was called
+     * @param bool|string $apiMethod The API method that was called
      * @return mixed  Usually a string, but can still be a PHP data structure if the format requested is 'original'
      */
     public function getResponse($value = null, $apiModule = false, $apiMethod = false)
@@ -77,6 +70,50 @@ class ResponseBuilder
         $this->apiModule = $apiModule;
         $this->apiMethod = $apiMethod;
 
+        if($this->outputFormat == 'original') {
+            @header('Content-Type: text/plain; charset=utf-8');
+        }
+        return $this->renderValue($value);
+    }
+
+    /**
+     * Returns an error $message in the requested $format
+     *
+     * @param Exception $e
+     * @throws Exception
+     * @return string
+     */
+    public function getResponseException(Exception $e)
+    {
+        $format = strtolower($this->outputFormat);
+
+        if ($format == 'original') {
+            throw $e;
+        }
+
+        try {
+            $renderer = Renderer::factory($format);
+        } catch (Exception $exceptionRenderer) {
+            return "Error: " . $e->getMessage() . " and: " . $exceptionRenderer->getMessage();
+        }
+
+        $e = $this->decorateExceptionWithDebugTrace($e);
+
+        $renderer->setException($e);
+
+        if ($format == 'php') {
+            $renderer->setSerialize($this->caseRendererPHPSerialize());
+        }
+
+        return $renderer->renderException();
+    }
+
+    /**
+     * @param $value
+     * @return string
+     */
+    protected function renderValue($value)
+    {
         // when null or void is returned from the api call, we handle it as a successful operation
         if (!isset($value)) {
             return $this->handleSuccess();
@@ -116,38 +153,6 @@ class ResponseBuilder
     }
 
     /**
-     * Returns an error $message in the requested $format
-     *
-     * @param Exception $e
-     * @throws Exception
-     * @return string
-     */
-    public function getResponseException(Exception $e)
-    {
-        $format = strtolower($this->outputFormat);
-
-        if ($format == 'original') {
-            throw $e;
-        }
-
-        try {
-            $renderer = Renderer::factory($format);
-        } catch (Exception $exceptionRenderer) {
-            return "Error: " . $e->getMessage() . " and: " . $exceptionRenderer->getMessage();
-        }
-
-        $e = $this->decorateExceptionWithDebugTrace($e);
-
-        $renderer->setException($e);
-
-        if ($format == 'php') {
-            $renderer->setSerialize($this->caseRendererPHPSerialize());
-        }
-
-        return $renderer->renderException();
-    }
-
-    /**
      * @param Exception $e
      * @return Exception
      */
@@ -155,12 +160,10 @@ class ResponseBuilder
     {
         // If we are in tests, show full backtrace
         if (defined('PIWIK_PATH_TEST_TO_ROOT')) {
-            if (self::DISPLAY_BACKTRACE_DEBUG
-                || Piwik_ShouldPrintBackTraceWithMessage()
-            ) {
+            if (\Piwik_ShouldPrintBackTraceWithMessage()) {
                 $message = $e->getMessage() . " in \n " . $e->getFile() . ":" . $e->getLine() . " \n " . $e->getTraceAsString();
             } else {
-                $message = $e->getMessage() . "\n \n --> To temporarily debug this error further, set const DISPLAY_BACKTRACE_DEBUG=true; in " . basename(__FILE__);
+                $message = $e->getMessage() . "\n \n --> To temporarily debug this error further, set const PIWIK_PRINT_ERROR_BACKTRACE=true; in index.php";
             }
             return new Exception($message);
         }
@@ -170,7 +173,7 @@ class ResponseBuilder
     /**
      * Returns true if the user requested to serialize the output data (&serialize=1 in the request)
      *
-     * @param mixed $defaultSerializeValue  Default value in case the user hasn't specified a value
+     * @param mixed $defaultSerializeValue Default value in case the user hasn't specified a value
      * @return bool
      */
     protected function caseRendererPHPSerialize($defaultSerializeValue = 1)
@@ -242,9 +245,9 @@ class ResponseBuilder
                     @header("Content-Type: text/xml;charset=utf-8");
                     $return =
                         "<?xml version=\"1.0\" encoding=\"utf-8\" ?>\n" .
-                            "<result>\n" .
-                            "\t<success message=\"" . $message . "\" />\n" .
-                            "</result>";
+                        "<result>\n" .
+                        "\t<success message=\"" . $message . "\" />\n" .
+                        "</result>";
                     break;
                 case 'json':
                     @header("Content-Type: application/json");
@@ -301,6 +304,11 @@ class ResponseBuilder
             $datatable = $flattener->flatten($datatable);
         }
 
+        if (1 == Common::getRequestVar('totals', '1', 'integer', $this->request)) {
+            $genericFilter = new ReportTotalsCalculator($this->apiModule, $this->apiMethod, $this->request);
+            $datatable     = $genericFilter->calculate($datatable);
+        }
+
         // if the flag disable_generic_filters is defined we skip the generic filters
         if (0 == Common::getRequestVar('disable_generic_filters', '0', 'string', $this->request)) {
             $genericFilter = new DataTableGenericFilter($this->request);
@@ -352,6 +360,7 @@ class ResponseBuilder
             }
             return $array;
         }
+
         $multiDimensional = $this->handleMultiDimensionalArray($array);
         if ($multiDimensional !== false) {
             return $multiDimensional;
@@ -426,59 +435,15 @@ class ResponseBuilder
      *        ),
      *    );
      *
-     * @param array $array  can contain scalar, arrays, DataTable and Set
+     * @param array $array can contain scalar, arrays, DataTable and Set
      * @return string
      */
     public static function convertMultiDimensionalArrayToJson($array)
     {
-        $isAssociative = Piwik::isAssociativeArray($array);
-
-        if ($isAssociative) {
-            $json = "{";
-        } else {
-            $json = "[";
-        }
-
-        foreach ($array as $key => $value) {
-            if ($isAssociative) {
-                $json .= "\"" . $key . "\":";
-            }
-
-            switch (true) {
-                // Case dimension is a PHP array
-                case (is_array($value)):
-
-                    $json .= Common::json_encode($value);
-                    break;
-
-                // Case dimension is a Set or a DataTable
-                case ($value instanceof DataTable\Map || $value instanceof DataTable):
-
-                    $XMLRenderer = new Json();
-                    $XMLRenderer->setTable($value);
-                    $renderedReport = $XMLRenderer->render();
-                    $json .= $renderedReport;
-                    break;
-
-                // Case scalar
-                default:
-
-                    $json .= Common::json_encode($value);
-                    break;
-            }
-
-            $json .= ",";
-        }
-
-        // Remove trailing ","
-        $json = substr($json, 0, strlen($json) - 1);
-
-        if ($isAssociative) {
-            $json .= "}";
-        } else {
-            $json .= "]";
-        }
-        return $json;
+        $jsonRenderer = new Json();
+        $jsonRenderer->setTable($array);
+        $renderedReport = $jsonRenderer->render();
+        return $renderedReport;
     }
 
     /**

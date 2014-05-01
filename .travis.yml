@@ -5,50 +5,86 @@ php:
   - 5.5
   - 5.4
   - 5.3
+#  - hhvm
 
 # Separate different test suites
 env:
   matrix:
-    - TEST_SUITE=PluginTests
-    - TEST_SUITE=CoreTests
-    - TEST_SUITE=IntegrationTests
+    # PDO Mysql
+    - TEST_SUITE=IntegrationTests MYSQL_ADAPTER=PDO_MYSQL
+    - TEST_SUITE=PluginTests MYSQL_ADAPTER=PDO_MYSQL
+    - TEST_SUITE=CoreTests MYSQL_ADAPTER=PDO_MYSQL
+    # Mysqli
+    - TEST_SUITE=IntegrationTests MYSQL_ADAPTER=MYSQLI
+    - TEST_SUITE=PluginTests MYSQL_ADAPTER=MYSQLI
+    - TEST_SUITE=CoreTests MYSQL_ADAPTER=MYSQLI
+    # Javascript tests
+    - TEST_SUITE=JavascriptTests MYSQL_ADAPTER=PDO_MYSQL
+    - TEST_SUITE=AngularJSTests MYSQL_ADAPTER=PDO_MYSQL
   global:
     - secure: "AMhZmPZx4SUcuZRBzGHlQPxzM4D8FvFB3UThDa52gbi9KIBrwcumzV2VGi6B\n5fgjwtB4XTE1In7qhY2HMikPWBmWYYOQ5QcMPJsqqHt4iMmahx8WKzne6NOk\nNpqAuje/fulNGeP2LJZi0nrub3Fh4VwXaOvpNloKNQN/2JuqPtM="
     - secure: "DySde80fX3dw0osGY5s5lGiGLjMleUkkONsuRDC4xjT1hAQP94FGHpPXVZV8\nAQY0s8MQmcK2eRLOQrmE9Bh1XXbGqh40s66XhSWq0hulFHxQH5OLaZXccFeu\n5WxGkHXnNDIc+CVhXW/IIbHZPO1K6hffS8fuvP1o6mYgxwFL6Xw="
 
-# Run PHP 5.4 for aa tests to generate
-# code coverage.
-
-# Disabling the full build
-# The bug experienced here is a "test edge case" bug tricky to find
-#matrix:
-#  include:
-#    - php: 5.4
-#      env:
-#        - TEST_SUITE=
-#        - secure: "RaRLGQuYhkPWNdkvNNMm0M4kukzwaaLXgQ9kIq3XALXuS1z31SnD27slFopH\nqIBmIYqevce9VKaytJSXrbjsWp8Yx3mheh4fDs4UP/ULhyJ8FgikGbZyU9DP\nsXUJbVMRXSab98Ga25EoV/d8dJoPLvRxMvtpmiT2XLEpwT8Bc2w="
+matrix:
+  allow_failures:
+    - php: hhvm
+  exclude:
+    # Javascript tests need to run only on one PHP version
+    - php: 5.4
+      env: TEST_SUITE=JavascriptTests MYSQL_ADAPTER=PDO_MYSQL
+    - php: 5.5
+      env: TEST_SUITE=JavascriptTests MYSQL_ADAPTER=PDO_MYSQL
+    - php: hhvm
+      env: TEST_SUITE=JavascriptTests MYSQL_ADAPTER=PDO_MYSQL
+    # AngularJS tests need to run only on one PHP version
+    - php: 5.4
+      env: TEST_SUITE=AngularJSTests MYSQL_ADAPTER=PDO_MYSQL
+    - php: 5.5
+      env: TEST_SUITE=AngularJSTests MYSQL_ADAPTER=PDO_MYSQL
+    - php: hhvm
+      env: TEST_SUITE=AngularJSTests MYSQL_ADAPTER=PDO_MYSQL
+    # Only run Mysqli tests on PHP 5.5
+    - php: 5.4
+      env: TEST_SUITE=IntegrationTests MYSQL_ADAPTER=MYSQLI
+    - php: 5.4
+      env: TEST_SUITE=PluginTests MYSQL_ADAPTER=MYSQLI
+    - php: 5.4
+      env: TEST_SUITE=CoreTests MYSQL_ADAPTER=MYSQLI
+    - php: 5.5
+      env: TEST_SUITE=IntegrationTests MYSQL_ADAPTER=MYSQLI
+    - php: 5.5
+      env: TEST_SUITE=PluginTests MYSQL_ADAPTER=MYSQLI
+    - php: 5.5
+      env: TEST_SUITE=CoreTests MYSQL_ADAPTER=MYSQLI
+    - php: hhvm
+      env: TEST_SUITE=IntegrationTests MYSQL_ADAPTER=MYSQLI
+    - php: hhvm
+      env: TEST_SUITE=PluginTests MYSQL_ADAPTER=MYSQLI
+    - php: hhvm
+      env: TEST_SUITE=CoreTests MYSQL_ADAPTER=MYSQLI
 
 script: ./travis.sh
 
 before_script:
+  - ./tests/travis/initiate_ui_tests.sh
+  - composer self-update
   - composer install
   - uname -a
   - date
   - php -r "var_dump(gd_info());"
-  - mysql -e 'create database piwik_test;'
+  - mysql -e 'create database piwik_tests;'
   - ./tests/travis/prepare.sh
   - ./tests/travis/setup_webserver.sh
   - cd tests/PHPUnit
 
 after_success:
   - cd $TRAVIS_BUILD_DIR
-  - ./tests/travis/initiate_ui_tests.sh
   - ./tests/travis/generate_docs.sh
 
 after_script:
   - cat /var/log/nginx/error.log
-  - cat $TRAVIS_BUILD_DIR/../piwik/tmp/php-fpm.log
-  - cat $TRAVIS_BUILD_DIR/../piwik/tmp/logs/logger_message.htm
+  - cat $TRAVIS_BUILD_DIR/tmp/php-fpm.log
+  - cat $TRAVIS_BUILD_DIR/tmp/logs/piwik.log
   - cd $TRAVIS_BUILD_DIR
   - ./tests/travis/upload_artifacts.sh
 
@@ -61,5 +97,7 @@ notifications:
     template:
       - "%{repository} (%{commit}) : %{message} %{foo} "
       - "Build details: %{build_url}"
-  email:
-    - piwik-builds@piwik.org
+  #email:
+  # if we specify piwik-builds@piwik.org then the developer doesn't get notified
+  #  - piwik-builds@piwik.org
+  # this is a missing feature by Travis to notify both list and committer

@@ -5,8 +5,6 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Piwik
  */
 namespace Piwik;
 
@@ -15,7 +13,6 @@ namespace Piwik;
  *
  * Used to server piwik.js and the merged+minified CSS and JS files
  *
- * @package Piwik
  */
 class ProxyHttp
 {
@@ -54,10 +51,10 @@ class ProxyHttp
      *
      * @param string $file The location of the static file to serve
      * @param string $contentType The content type of the static file.
-     * @param bool $expireFarFuture If set to true, will set Expires: header in far future.
-     *                                  Should be set to false for files that don't have a cache buster (eg. piwik.js)
+     * @param bool $expireFarFuture Day in the far future to set the Expires header to.
+     *                              Should be set to false for files that should not be cached.
      */
-    public static function serverStaticFile($file, $contentType, $expireFarFuture = true)
+    public static function serverStaticFile($file, $contentType, $expireFarFutureDays = 100)
     {
         if (file_exists($file)) {
             // conditional GET
@@ -79,9 +76,9 @@ class ProxyHttp
             @header('Vary: Accept-Encoding');
             @header('Content-Disposition: inline; filename=' . basename($file));
 
-            if ($expireFarFuture) {
+            if ($expireFarFutureDays) {
                 // Required by proxy caches potentially in between the browser and server to cache the request indeed
-                @header("Expires: " . gmdate('D, d M Y H:i:s', time() + 86400 * 100) . ' GMT');
+                @header("Expires: " . gmdate('D, d M Y H:i:s', time() + 86400 * (int)$expireFarFutureDays) . ' GMT');
             }
 
             // Returns 304 if not modified since
@@ -91,7 +88,7 @@ class ProxyHttp
                 // optional compression
                 $compressed = false;
                 $encoding = '';
-                $compressedFileLocation = PIWIK_USER_PATH . Piwik::COMPRESSED_FILE_LOCATION . basename($file);
+                $compressedFileLocation = AssetManager::getInstance()->getAssetDirectory() . '/' . basename($file);
 
                 $phpOutputCompressionEnabled = ProxyHttp::isPhpOutputCompressed();
                 if (isset($_SERVER['HTTP_ACCEPT_ENCODING']) && !$phpOutputCompressionEnabled) {
@@ -176,8 +173,10 @@ class ProxyHttp
         });
 
         // user defined handler via wrapper
-        $autoPrependFile = ini_get('auto_prepend_file');
-        $autoAppendFile = ini_get('auto_append_file');
+        if (!defined('PIWIK_TEST_MODE')) {
+            $autoPrependFile = ini_get('auto_prepend_file');
+            $autoAppendFile = ini_get('auto_append_file');
+        }
 
         return !empty($zlibOutputCompression) ||
         !empty($outputHandler) ||
@@ -198,7 +197,7 @@ class ProxyHttp
      * @see http://support.microsoft.com/kb/316431/
      * @see RFC2616
      *
-     * @param string $override  One of "public", "private", "no-cache", or "no-store". (optional)
+     * @param string $override One of "public", "private", "no-cache", or "no-store". (optional)
      */
     public static function overrideCacheControlHeaders($override = null)
     {

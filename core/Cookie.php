@@ -5,8 +5,6 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Piwik
  */
 namespace Piwik;
 
@@ -16,7 +14,6 @@ namespace Piwik;
  * - edit an existing cookie and save it
  * - create a new cookie, set values, expiration date, etc. and save it
  *
- * @package Piwik
  */
 class Cookie
 {
@@ -77,11 +74,11 @@ class Cookie
      * Instantiate a new Cookie object and tries to load the cookie content if the cookie
      * exists already.
      *
-     * @param string $cookieName  cookie Name
-     * @param int $expire      The timestamp after which the cookie will expire, eg time() + 86400;
+     * @param string $cookieName cookie Name
+     * @param int $expire The timestamp after which the cookie will expire, eg time() + 86400;
      *                                  use 0 (int zero) to expire cookie at end of browser session
-     * @param string $path        The path on the server in which the cookie will be available on.
-     * @param bool|string $keyStore    Will be used to store several bits of data (eg. one array per website)
+     * @param string $path The path on the server in which the cookie will be available on.
+     * @param bool|string $keyStore Will be used to store several bits of data (eg. one array per website)
      */
     public function __construct($cookieName, $expire = null, $path = null, $keyStore = false)
     {
@@ -127,9 +124,9 @@ class Cookie
      *
      * @link http://php.net/setcookie
      *
-     * @param string $Name      Name of cookie
-     * @param string $Value     Value of cookie
-     * @param int $Expires   Time the cookie expires
+     * @param string $Name Name of cookie
+     * @param string $Value Value of cookie
+     * @param int $Expires Time the cookie expires
      * @param string $Path
      * @param string $Domain
      * @param bool $Secure
@@ -317,8 +314,8 @@ class Cookie
      * You should save arrays only when you are sure about their maximum data size.
      * A cookie has to stay small and its size shouldn't increase over time!
      *
-     * @param string $name   Name of the value to save; the name will be used to retrieve this value
-     * @param string|array|number $value  Value to save. If null, entry will be deleted from cookie.
+     * @param string $name Name of the value to save; the name will be used to retrieve this value
+     * @param string|array|number $value Value to save. If null, entry will be deleted from cookie.
      */
     public function set($name, $value)
     {
@@ -376,7 +373,7 @@ class Cookie
      * Escape values from the cookie before sending them back to the client
      * (when using the get() method).
      *
-     * @param string $value  Value to be escaped
+     * @param string $value Value to be escaped
      * @return mixed  The value once cleaned.
      */
     protected static function escapeValue($value)

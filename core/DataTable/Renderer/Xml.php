@@ -5,17 +5,14 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Piwik
  */
 namespace Piwik\DataTable\Renderer;
 
 use Exception;
-use Piwik\DataTable;
 use Piwik\DataTable\Map;
-use Piwik\DataTable\Renderer\Php;
-use Piwik\DataTable\Simple;
 use Piwik\DataTable\Renderer;
+use Piwik\DataTable;
+use Piwik\DataTable\Simple;
 use Piwik\Piwik;
 
 /**
@@ -25,8 +22,6 @@ use Piwik\Piwik;
  *
  * Works with recursive DataTable (when a row can be associated with a subDataTable).
  *
- * @package Piwik
- * @subpackage DataTable
  */
 class Xml extends Renderer
 {
@@ -93,7 +88,7 @@ class Xml extends Renderer
     {
         $array = $this->getArrayFromDataTable($table);
         if ($table instanceof Map) {
-            $out = $this->renderDataTableArray($table, $array, $prefixLines);
+            $out = $this->renderDataTableMap($table, $array, $prefixLines);
 
             if ($returnOnlyDataTableXml) {
                 return $out;
@@ -179,7 +174,8 @@ class Xml extends Renderer
         foreach ($array as $key => $value) {
             // based on the type of array & the key, determine how this node will look
             if ($isAssociativeArray) {
-                if (is_numeric($key)) {
+                $keyIsInvalidXmlElement = is_numeric($key) || is_numeric($key[0]);
+                if ($keyIsInvalidXmlElement) {
                     $prefix = "<row key=\"$key\">";
                     $suffix = "</row>";
                     $emptyNode = "<row key=\"$key\"/>";
@@ -213,7 +209,7 @@ class Xml extends Renderer
                 } else {
                     $result .= $prefixLines . $prefix . "\n";
                     if ($value instanceof Map) {
-                        $result .= $this->renderDataTableArray($value, $this->getArrayFromDataTable($value), $prefixLines);
+                        $result .= $this->renderDataTableMap($value, $this->getArrayFromDataTable($value), $prefixLines);
                     } else if ($value instanceof Simple) {
                         $result .= $this->renderDataTableSimple($this->getArrayFromDataTable($value), $prefixLines);
                     } else {
@@ -244,7 +240,7 @@ class Xml extends Renderer
      * @param string $prefixLines
      * @return string
      */
-    protected function renderDataTableArray($table, $array, $prefixLines = "")
+    protected function renderDataTableMap($table, $array, $prefixLines = "")
     {
         // CASE 1
         //array
@@ -268,7 +264,7 @@ class Xml extends Renderer
             return $xml;
         }
 
-        $subTables = $table->getArray();
+        $subTables = $table->getDataTables();
         $firstTable = current($subTables);
 
         // CASE 2
@@ -341,7 +337,7 @@ class Xml extends Renderer
 
         if ($firstTable instanceof Map) {
             $xml = '';
-            $tables = $table->getArray();
+            $tables = $table->getDataTables();
             $nameDescriptionAttribute = $table->getKeyName();
             foreach ($tables as $valueAttribute => $tableInArray) {
                 $out = $this->renderTable($tableInArray, true, $prefixLines . "\t");
@@ -420,6 +416,10 @@ class Xml extends Renderer
      */
     protected function renderDataTableSimple($array, $prefixLine = "")
     {
+        if (!is_array($array)) {
+            $array = array('value' => $array);
+        }
+
         $out = '';
         foreach ($array as $keyName => $value) {
             $xmlValue = self::formatValueXml($value);

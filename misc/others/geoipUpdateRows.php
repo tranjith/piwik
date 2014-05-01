@@ -4,38 +4,15 @@ use Piwik\Config;
 use Piwik\Db;
 use Piwik\FrontController;
 use Piwik\IP;
+use Piwik\Log;
 use Piwik\Piwik;
 use Piwik\Plugins\UserCountry\LocationProvider\GeoIp\Pecl;
 use Piwik\Plugins\UserCountry\LocationProvider;
 use Piwik\Plugins\UserCountry\LocationProvider\GeoIp\Php;
 
+require_once './cli-script-bootstrap.php';
+
 ini_set("memory_limit", "512M");
-error_reporting(E_ALL | E_NOTICE);
-
-define('PIWIK_DOCUMENT_ROOT', dirname(__FILE__) == '/' ? '' : dirname(__FILE__) . '/../..');
-if (file_exists(PIWIK_DOCUMENT_ROOT . '/bootstrap.php')) {
-    require_once PIWIK_DOCUMENT_ROOT . '/bootstrap.php';
-}
-if (!defined('PIWIK_USER_PATH')) {
-    define('PIWIK_USER_PATH', PIWIK_DOCUMENT_ROOT);
-}
-if (!defined('PIWIK_INCLUDE_PATH')) {
-    define('PIWIK_INCLUDE_PATH', PIWIK_DOCUMENT_ROOT);
-}
-
-ignore_user_abort(true);
-set_time_limit(0);
-@date_default_timezone_set('UTC');
-
-require_once PIWIK_INCLUDE_PATH . '/libs/upgradephp/upgrade.php';
-require_once PIWIK_INCLUDE_PATH . '/core/testMinimumPhpVersion.php';
-require_once PIWIK_INCLUDE_PATH . '/core/Loader.php';
-
-$GLOBALS['PIWIK_TRACKER_DEBUG'] = false;
-define('PIWIK_ENABLE_DISPATCH', false);
-
-Config::getInstance()->log['logger_message'][] = 'screen';
-FrontController::getInstance()->init();
 
 $query = "SELECT count(*) FROM " . Common::prefixTable('log_visit');
 $count = Db::fetchOne($query);
@@ -43,9 +20,9 @@ $count = Db::fetchOne($query);
 // when script run via browser, check for Super User & output html page to do conversion via AJAX
 if (!Common::isPhpCliMode()) {
     try {
-        Piwik::checkUserIsSuperUser();
+        Piwik::checkUserHasSuperUserAccess();
     } catch (Exception $e) {
-        Piwik::log('[error] You must be logged in as Super User to run this script. Please login in to Piwik and refresh this page.');
+        Log::error('[error] You must be logged in as Super User to run this script. Please login in to Piwik and refresh this page.');
         exit;
     }
     // the 'start' query param will be supplied by the AJAX requests, so if it's not there, the
@@ -111,7 +88,7 @@ if (!Common::isPhpCliMode()) {
 
 function geoipUpdateError($message)
 {
-    Piwik::log($message);
+    Log::error($message);
     if (!Common::isPhpCliMode()) {
         @header('HTTP/1.1 500 Internal Server Error', $replace = true, $responseCode = 500);
     }
@@ -126,7 +103,7 @@ $displayNotes = $start == 0;
 $provider = new Pecl();
 if (!$provider->isAvailable()) {
     if ($displayNotes) {
-        Piwik::log("[note] The GeoIP PECL extension is not installed.");
+        Log::info("[note] The GeoIP PECL extension is not installed.");
     }
 
     $provider = null;
@@ -134,10 +111,10 @@ if (!$provider->isAvailable()) {
     $workingOrError = $provider->isWorking();
     if ($workingOrError !== true) {
         if ($displayNotes) {
-            Piwik::log("[note] The GeoIP PECL extension is broken: $workingOrError");
+            Log::info("[note] The GeoIP PECL extension is broken: $workingOrError");
         }
         if (Common::isPhpCliMode()) {
-            Piwik::log("[note] Make sure your command line PHP is configured to use the PECL extension.");
+            Log::info("[note] Make sure your command line PHP is configured to use the PECL extension.");
         }
         $provider = null;
     }
@@ -146,20 +123,20 @@ if (!$provider->isAvailable()) {
 // use php api if pecl extension cannot be used
 if (is_null($provider)) {
     if ($displayNotes) {
-        Piwik::log("[note] Falling back to PHP API. This may become too slow for you. If so, you can read this link on how to install the PECL extension: http://piwik.org/faq/how-to/#faq_164");
+        Log::info("[note] Falling back to PHP API. This may become too slow for you. If so, you can read this link on how to install the PECL extension: http://piwik.org/faq/how-to/#faq_164");
     }
 
     $provider = new Php();
     if (!$provider->isAvailable()) {
         if ($displayNotes) {
-            Piwik::log("[note] The GeoIP PHP API is not available. This means you do not have a GeoIP location database in your ./misc directory. The database must be named either GeoIP.dat or GeoIPCity.dat based on the type of database it is.");
+            Log::info("[note] The GeoIP PHP API is not available. This means you do not have a GeoIP location database in your ./misc directory. The database must be named either GeoIP.dat or GeoIPCity.dat based on the type of database it is.");
         }
         $provider = null;
     } else {
         $workingOrError = $provider->isWorking();
         if ($workingOrError !== true) {
             if ($displayNotes) {
-                Piwik::log("[note] The GeoIP PHP API is broken: $workingOrError");
+                Log::info("[note] The GeoIP PHP API is broken: $workingOrError");
             }
             $provider = null;
         }
@@ -172,7 +149,7 @@ if (is_null($provider)) {
 
 $info = $provider->getInfo();
 if ($displayNotes) {
-    Piwik::log("[note] Found working provider: {$info['id']}");
+    Log::info("[note] Found working provider: {$info['id']}");
 }
 
 // perform update
@@ -183,7 +160,7 @@ $logVisitFieldsToUpdate = array('location_country'   => LocationProvider::COUNTR
                                 'location_longitude' => LocationProvider::LONGITUDE_KEY);
 
 if ($displayNotes) {
-    Piwik::log("\n$count rows to process in " . Common::prefixTable('log_visit')
+    Log::info("\n$count rows to process in " . Common::prefixTable('log_visit')
         . " and " . Common::prefixTable('log_conversion') . "...");
 }
 flush();
@@ -246,12 +223,11 @@ for (; $start < $end; $start += $limit) {
 				 WHERE idvisit = ?";
         Db::query($sql, $bind);
     }
-    Piwik::log(round($start * 100 / $count) . "% done...");
+    Log::info(round($start * 100 / $count) . "% done...");
     flush();
 }
 if ($start >= $count) {
-    Piwik::log("100% done!");
-    Piwik::log("");
-    Piwik::log("[note] Now that you've geolocated your old visits, you need to force your reports to be re-processed. See this FAQ entry: http://piwik.org/faq/how-to/#faq_59");
+    Log::info("100% done!");
+    Log::info("");
+    Log::info("[note] Now that you've geolocated your old visits, you need to force your reports to be re-processed. See this FAQ entry: http://piwik.org/faq/how-to/#faq_59");
 }
-

@@ -5,24 +5,24 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Updates
  */
+
+namespace Piwik\Updates;
+
 use Piwik\Common;
 use Piwik\Updater;
 use Piwik\Updates;
 
 /**
- * @package Updates
  */
-class Piwik_Updates_1_9_b9 extends Updates
+class Updates_1_9_b9 extends Updates
 {
     static function isMajorUpdate()
     {
         return true;
     }
 
-    static function getSql($schema = 'Myisam')
+    static function getSql()
     {
         $logVisit = Common::prefixTable('log_visit');
         $logConversion = Common::prefixTable('log_conversion');
@@ -48,7 +48,7 @@ class Piwik_Updates_1_9_b9 extends Updates
             self::enableMaintenanceMode();
             Updater::updateDatabase(__FILE__, self::getSql());
             self::disableMaintenanceMode();
-        } catch (Exception $e) {
+        } catch (\Exception $e) {
             self::disableMaintenanceMode();
             throw $e;
         }

@@ -75,7 +75,6 @@
         },
 
         _bindEvents: function () {
-            this.setYTicks();
             JqplotGraphDataTablePrototype._bindEvents.call(this);
 
             var self = this;
@@ -120,10 +119,16 @@
                         $(this).css('cursor', 'pointer');
                     }
                 });
+
+            this.setYTicks();
         },
 
         _destroyDataPointTooltip: function () {
             // do nothing, tooltips are destroyed in the jqplotMouseLeave event
+        },
+
+        render: function () {
+            JqplotGraphDataTablePrototype.render.call(this);
         }
     });
 

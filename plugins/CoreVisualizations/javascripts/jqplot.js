@@ -117,13 +117,27 @@
 
         _setTooltipPercentages: function () {
             this.tooltip = {percentages: []};
+
             for (var seriesIdx = 0; seriesIdx != this.data.length; ++seriesIdx) {
                 var series = this.data[seriesIdx];
-                var sum = series.reduce(function (previousValue, currentValue) { return previousValue + currentValue; }, 0);
+                var sum = 0;
+
+                $.each(series, function(index, value) {
+                    if ($.isArray(value) && value[1]) {
+                        sum = sum + value[1];
+                    } else {
+                        sum = sum + value;
+                    }
+                });
 
                 var percentages = this.tooltip.percentages[seriesIdx] = [];
                 for (var valueIdx = 0; valueIdx != series.length; ++valueIdx) {
-                    percentages[valueIdx] = sum > 0 ? Math.round(100 * series[valueIdx] / sum) : 0;
+                    var value = series[valueIdx];
+                    if ($.isArray(value) && value[1]) {
+                        value = value[1];
+                    }
+                    
+                    percentages[valueIdx] = sum > 0 ? Math.round(100 * value / sum) : 0;
                 }
             }
         },
@@ -450,6 +464,7 @@
                 // initially, show only the first series
                 this.data = [this.data[0]];
                 this.jqplotParams.series = [this.jqplotParams.series[0]];
+                this.setYTicks();
             }
         },
 
@@ -584,6 +599,7 @@ JQPlotExternalSeriesToggle.prototype = {
 
         this.jqplotObject.data = config.data;
         this.jqplotObject.jqplotParams = config.params;
+        this.jqplotObject.setYTicks();
         this.jqplotObject.render();
     },
 
@@ -610,6 +626,8 @@ RowEvolutionSeriesToggle.prototype.attachEvents = function () {
         el.click(function (e) {
             if (e.shiftKey) {
                 self.toggleSeries(i);
+
+                document.getSelection().removeAllRanges(); // make sure chrome doesn't select text
             } else {
                 self.showSeries(i);
             }
@@ -913,10 +931,13 @@ RowEvolutionSeriesToggle.prototype.beforeReplot = function () {
 
 (function ($, require) {
     $.jqplot.preInitHooks.push(function (target, data, options) {
-        var SeriesPicker = require('piwik/DataTableVisualizations/Widgets').SeriesPicker;
-
         // create the series picker
         var dataTable = $('#' + target).closest('.dataTable').data('uiControlObject');
+        if (!dataTable) { // if we're not dealing w/ a DataTable visualization, don't add the series picker
+            return;
+        }
+
+        var SeriesPicker = require('piwik/DataTableVisualizations/Widgets').SeriesPicker;
         var seriesPicker = new SeriesPicker(dataTable);
 
         // handle placeSeriesPicker event

@@ -8,9 +8,9 @@
  * @package Piwik
  */
 
-use Piwik\FrontController;
-
-define('PIWIK_DOCUMENT_ROOT', dirname(__FILE__) == '/' ? '' : dirname(__FILE__));
+if(!defined('PIWIK_DOCUMENT_ROOT')) {
+    define('PIWIK_DOCUMENT_ROOT', dirname(__FILE__) == '/' ? '' : dirname(__FILE__));
+}
 if (file_exists(PIWIK_DOCUMENT_ROOT . '/bootstrap.php')) {
     require_once PIWIK_DOCUMENT_ROOT . '/bootstrap.php';
 }
@@ -27,26 +27,21 @@ if (!defined('PIWIK_INCLUDE_PATH')) {
     define('PIWIK_INCLUDE_PATH', PIWIK_DOCUMENT_ROOT);
 }
 
-require_once PIWIK_INCLUDE_PATH . '/libs/upgradephp/upgrade.php';
 require_once PIWIK_INCLUDE_PATH . '/core/testMinimumPhpVersion.php';
 
 // NOTE: the code above this comment must be PHP4 compatible
 
+require_once PIWIK_INCLUDE_PATH . '/libs/upgradephp/upgrade.php';
+
 session_cache_limiter('nocache');
 @date_default_timezone_set('UTC');
-require_once PIWIK_INCLUDE_PATH . '/vendor/autoload.php';
+require_once file_exists(PIWIK_INCLUDE_PATH . '/vendor/autoload.php')
+    ? PIWIK_INCLUDE_PATH . '/vendor/autoload.php' // Piwik is the main project
+    : PIWIK_INCLUDE_PATH . '/../../autoload.php'; // Piwik is installed as a dependency
 require_once PIWIK_INCLUDE_PATH . '/core/Loader.php';
-require_once PIWIK_INCLUDE_PATH . '/core/functions.php';
 
-if (!defined('PIWIK_ENABLE_ERROR_HANDLER') || PIWIK_ENABLE_ERROR_HANDLER) {
-    require_once PIWIK_INCLUDE_PATH . '/core/ErrorHandler.php';
-    require_once PIWIK_INCLUDE_PATH . '/core/ExceptionHandler.php';
-    set_error_handler('Piwik_ErrorHandler');
-    set_exception_handler('Piwik_ExceptionHandler');
+if(!defined('PIWIK_PRINT_ERROR_BACKTRACE')) {
+    define('PIWIK_PRINT_ERROR_BACKTRACE', false);
 }
 
-if (!defined('PIWIK_ENABLE_DISPATCH') || PIWIK_ENABLE_DISPATCH) {
-    $controller = FrontController::getInstance();
-    $controller->init();
-    $controller->dispatch();
-}
+require_once PIWIK_INCLUDE_PATH . '/core/dispatch.php';

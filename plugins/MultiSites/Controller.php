@@ -5,8 +5,6 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik_Plugins
- * @package MultiSites
  */
 namespace Piwik\Plugins\MultiSites;
 
@@ -23,199 +21,57 @@ use Piwik\View;
 
 /**
  *
- * @package MultiSites
  */
-class Controller extends \Piwik\Controller
+class Controller extends \Piwik\Plugin\Controller
 {
-    protected $orderBy = 'visits';
-    protected $order = 'desc';
-    protected $evolutionBy = 'visits';
-    protected $page = 1;
-    protected $limit = 0;
-    protected $period;
-    protected $date;
-
-    function __construct()
+    public function __construct()
     {
         parent::__construct();
-
-        $this->limit = Config::getInstance()->General['all_websites_website_per_page'];
     }
 
-    function index()
+    public function index()
     {
-        $this->getSitesInfo($isWidgetized = false);
+        return $this->getSitesInfo($isWidgetized = false);
     }
 
-    function standalone()
+    public function standalone()
     {
-        $this->getSitesInfo($isWidgetized = true);
+        return $this->getSitesInfo($isWidgetized = true);
     }
 
     public function getSitesInfo($isWidgetized = false)
     {
         Piwik::checkUserHasSomeViewAccess();
-        $displayRevenueColumn = Common::isGoalPluginEnabled();
 
-        $date = Common::getRequestVar('date', 'today');
+        $date   = Common::getRequestVar('date', 'today');
         $period = Common::getRequestVar('period', 'day');
-        $siteIds = APISitesManager::getInstance()->getSitesIdWithAtLeastViewAccess();
-        list($minDate, $maxDate) = $this->getMinMaxDateAcrossWebsites($siteIds);
-
-        // overwrites the default Date set in the parent controller
-        // Instead of the default current website's local date,
-        // we set "today" or "yesterday" based on the default Piwik timezone
-        $piwikDefaultTimezone = APISitesManager::getInstance()->getDefaultTimezone();
-        if ($period != 'range') {
-            $date = $this->getDateParameterInTimezone($date, $piwikDefaultTimezone);
-            $this->setDate($date);
-            $date = $date->toString();
-        }
-        $dataTable = APIMultiSites::getInstance()->getAll($period, $date, $segment = false);
-
-        // put data into a form the template will understand better
-        $digestableData = array();
-        foreach ($siteIds as $idSite) {
-            $isEcommerceEnabled = Site::isEcommerceEnabledFor($idSite);
-
-            $digestableData[$idSite] = array(
-                'idsite'    => $idSite,
-                'main_url'  => Site::getMainUrlFor($idSite),
-                'name'      => Site::getNameFor($idSite),
-                'visits'    => 0,
-                'pageviews' => 0
-            );
-
-            if ($period != 'range') {
-                $digestableData[$idSite]['visits_evolution'] = 0;
-                $digestableData[$idSite]['pageviews_evolution'] = 0;
-            }
-
-            if ($displayRevenueColumn) {
-                $revenueDefault = $isEcommerceEnabled ? 0 : "'-'";
-
-                if ($period != 'range') {
-                    $digestableData[$idSite]['revenue_evolution'] = $revenueDefault;
-                }
-            }
-        }
-
-        foreach ($dataTable->getRows() as $row) {
-            $idsite = (int)$row->getMetadata('idsite');
-
-            $site = & $digestableData[$idsite];
-
-            $site['visits'] = (int)$row->getColumn('nb_visits');
-            $site['pageviews'] = (int)$row->getColumn('nb_pageviews');
-
-            if ($displayRevenueColumn) {
-                if ($row->getColumn('revenue') !== false) {
-                    $site['revenue'] = $row->getColumn('revenue');
-                }
-            }
-
-            if ($period != 'range') {
-                $site['visits_evolution'] = $row->getColumn('visits_evolution');
-                $site['pageviews_evolution'] = $row->getColumn('pageviews_evolution');
-
-                if ($displayRevenueColumn) {
-                    $site['revenue_evolution'] = $row->getColumn('revenue_evolution');
-                }
-            }
-        }
-
-        $this->applyPrettyMoney($digestableData);
 
         $view = new View("@MultiSites/getSitesInfo");
-        $view->isWidgetized = $isWidgetized;
-        $view->sitesData = array_values($digestableData);
-        $view->evolutionBy = $this->evolutionBy;
-        $view->period = $period;
-        $view->page = $this->page;
-        $view->limit = $this->limit;
-        $view->orderBy = $this->orderBy;
-        $view->order = $this->order;
-        $view->totalVisits = $dataTable->getMetadata('total_nb_visits');
-        $view->totalRevenue = $dataTable->getMetadata('total_revenue');
 
-        $view->displayRevenueColumn = $displayRevenueColumn;
-        $view->totalPageviews = $dataTable->getMetadata('total_nb_pageviews');
-        $view->pastTotalVisits = $dataTable->getMetadata('last_period_total_nb_visits');
-        $view->totalVisitsEvolution = $dataTable->getMetadata('total_visits_evolution');
-        if ($view->totalVisitsEvolution > 0) {
-            $view->totalVisitsEvolution = '+' . $view->totalVisitsEvolution;
-        }
+        $view->isWidgetized         = $isWidgetized;
+        $view->displayRevenueColumn = Common::isGoalPluginEnabled();
+        $view->limit                = Config::getInstance()->General['all_websites_website_per_page'];
+        $view->show_sparklines      = Config::getInstance()->General['show_multisites_sparklines'];
 
-        if ($period != 'range') {
-            $lastPeriod = Period::factory($period, $dataTable->getMetadata('last_period_date'));
-            $view->pastPeriodPretty = self::getCalendarPrettyDate($lastPeriod);
-        }
-
-        $params = $this->getGraphParamsModified();
-        $view->dateSparkline = $period == 'range' ? $date : $params['date'];
-
-        $view->autoRefreshTodayReport = false;
+        $view->autoRefreshTodayReport = 0;
         // if the current date is today, or yesterday,
         // in case the website is set to UTC-12), or today in UTC+14, we refresh the page every 5min
         if (in_array($date, array('today', date('Y-m-d'),
                                   'yesterday', Date::factory('yesterday')->toString('Y-m-d'),
                                   Date::factory('now', 'UTC+14')->toString('Y-m-d')))
         ) {
-
             $view->autoRefreshTodayReport = Config::getInstance()->General['multisites_refresh_after_seconds'];
         }
+
+        $params = $this->getGraphParamsModified();
+        $view->dateSparkline = $period == 'range' ? $date : $params['date'];
+
         $this->setGeneralVariablesView($view);
-        $this->setMinDateView($minDate, $view);
-        $this->setMaxDateView($maxDate, $view);
-        $view->show_sparklines = Config::getInstance()->General['show_multisites_sparklines'];
 
-        echo $view->render();
+        return $view->render();
     }
 
-    /**
-     * The Multisites reports displays the first calendar date as the earliest day available for all websites.
-     * Also, today is the later "today" available across all timezones.
-     * @param array $siteIds Array of IDs for each site being displayed.
-     * @return array of two Date instances. First is the min-date & the second
-     *               is the max date.
-     */
-    private function getMinMaxDateAcrossWebsites($siteIds)
-    {
-        $now = Date::now();
-
-        $minDate = null;
-        $maxDate = $now->subDay(1)->getTimestamp();
-        foreach ($siteIds as $idsite) {
-            // look for 'now' in the website's timezone
-            $timezone = Site::getTimezoneFor($idsite);
-            $date = Date::adjustForTimezone($now->getTimestamp(), $timezone);
-            if ($date > $maxDate) {
-                $maxDate = $date;
-            }
-
-            // look for the absolute minimum date
-            $creationDate = Site::getCreationDateFor($idsite);
-            $date = Date::adjustForTimezone(strtotime($creationDate), $timezone);
-            if (is_null($minDate) || $date < $minDate) {
-                $minDate = $date;
-            }
-        }
-
-        return array(Date::factory($minDate), Date::factory($maxDate));
-    }
-
-    protected function applyPrettyMoney(&$sites)
-    {
-        foreach ($sites as $idsite => &$site) {
-            $revenue = "-";
-            if (!empty($site['revenue'])) {
-                $revenue = MetricsFormatter::getPrettyMoney($site['revenue'], $site['idsite'], $htmlAllowed = false);
-            }
-            $site['revenue'] = '"' . $revenue . '"';
-        }
-    }
-
-    public function getEvolutionGraph($fetch = false, $columns = false)
+    public function getEvolutionGraph($columns = false)
     {
         if (empty($columns)) {
             $columns = Common::getRequestVar('columns');
@@ -226,7 +82,6 @@ class Controller extends \Piwik\Controller
             $api = "Goals.get";
         }
         $view = $this->getLastUnitGraph($this->pluginName, __FUNCTION__, $api);
-        $view->columns_to_display = $columns;
-        return $this->renderView($view, $fetch);
+        return $this->renderView($view);
     }
 }

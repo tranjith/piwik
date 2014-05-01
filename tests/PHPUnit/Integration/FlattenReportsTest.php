@@ -16,7 +16,7 @@ class Test_Piwik_Integration_FlattenReports extends IntegrationTestCase
     /**
      * @dataProvider getApiForTesting
      * @group        Integration
-     * @group        FlattenReports
+     * 
      */
     public function testApi($api, $params)
     {
@@ -32,7 +32,7 @@ class Test_Piwik_Integration_FlattenReports extends IntegrationTestCase
 
         // referrers
         $return[] = array(
-            'Referers.getWebsites',
+            'Referrers.getWebsites',
             array(
                 'idSite'                 => $idSite,
                 'date'                   => $dateTime,

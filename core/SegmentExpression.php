@@ -5,16 +5,14 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Piwik
  */
 
 namespace Piwik;
+
 use Exception;
 
 /**
  *
- * @package Piwik
  */
 class SegmentExpression
 {
@@ -120,15 +118,6 @@ class SegmentExpression
     public function setSubExpressionsAfterCleanup($parsedSubExpressions)
     {
         $this->parsedSubExpressions = $parsedSubExpressions;
-    }
-
-    /**
-     * Returns the current sub expression
-     * @return array
-     */
-    public function getSubExpressions()
-    {
-        return $this->parsedSubExpressions;
     }
 
     /**

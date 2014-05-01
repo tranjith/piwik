@@ -1,23 +1,25 @@
 <!DOCTYPE html>
 <!--[if lt IE 9 ]>
-<html class="old-ie"> <![endif]-->
+<html class="old-ie" id="ng-app" ng-app="piwikApp"> <![endif]-->
 <!--[if (gte IE 9)|!(IE)]><!-->
-<html><!--<![endif]-->
+<html id="ng-app" ng-app="piwikApp"><!--<![endif]-->
     <head>
-        {% block head %}
+{% block head %}
             <meta charset="utf-8">
             <title>{% if not isCustomLogo %}Piwik &rsaquo; {% endif %}{{ 'CoreAdminHome_Administration'|translate }}</title>
             <meta name="generator" content="Piwik - Open Source Web Analytics"/>
             <link rel="shortcut icon" href="plugins/CoreHome/images/favicon.ico"/>
 
-            {% include "_jsGlobalVariables.twig" %}
-            {% include "_jsCssIncludes.twig" %}
+{% include "_jsGlobalVariables.twig" %}
+{% include "_piwikTag.twig" %}
+{% include "_jsCssIncludes.twig" %}
+
             <!--[if IE]>
             <link rel="stylesheet" type="text/css" href="plugins/Zeitgeist/stylesheets/ieonly.css"/>
             <![endif]-->
         {% endblock %}
     </head>
-    <body>
+    <body ng-app="app">
     {% set isAdminLayout = true %}
     {% include "_iframeBuster.twig" %}
     {% include "@CoreHome/_javaScriptDisabled.twig" %}
@@ -27,6 +29,8 @@
 
             {% import 'ajaxMacros.twig' as ajax %}
             {{ ajax.requestErrorDiv }}
+            {{ postEvent("Template.beforeContent", "admin", currentModule) }}
+
             <div id="container">
 
                 {% if showMenu is not defined or showMenu %}
@@ -36,22 +40,7 @@
                 <div id="content" class="admin">
 
                     {% include "@CoreHome/_headerMessage.twig" %}
-
-                    {% if configFileNotWritable is defined and configFileNotWritable%}
-                    <div class="ajaxSuccess" style="display:inline-block;">
-                        {{ 'General_ConfigFileIsNotWritable'|translate("(config/config.ini.php)","<br/>")|raw }}
-                    </div>
-                    {% elseif false %}
-                    <div class="ajaxSuccess" style="display:inline-block;">
-                        {{ 'General_YourChangesHaveBeenSaved'|translate }}
-                    </div>
-                    {% endif %}
-
-                    {% if statisticsNotRecorded is defined and statisticsNotRecorded is not empty %}
-                    <div class="ajaxSuccess" style="display:inline-block;">
-                        {{ 'General_StatisticsAreNotRecorded'|translate }}
-                    </div>
-                    {% endif %}
+                    {% include "@CoreHome/_notifications.twig" %}
 
                     <div class="ui-confirm" id="alert">
                         <h2></h2>
@@ -60,27 +49,11 @@
 
                     {% include "@CoreHome/_warningInvalidHost.twig" %}
 
-                    {# missing plugins warning #}
-                    {% if isSuperUser and invalidPluginsWarning is defined %}
-                    <div class="ajaxSuccess">
-                        <strong>{{ 'General_Warning'|translate }}:&nbsp;</strong>{{ invalidPluginsWarning|raw }}
-                    </div>
-                    {% endif %}
-
-                    {# old GeoIP plugin warning #}
-                    {% if isSuperUser and usingOldGeoIPPlugin is not empty %}
-                    <div class="ajaxSuccess">
-                        <strong>{{ 'General_Warning'|translate }}
-                            :&nbsp;</strong>{{ 'UserCountry_OldGeoIPWarning'|translate('<a href="index.php?module=CorePluginsAdmin&action=plugins&idSite=1&period=day&date=yesterday">','</a>','<a href="index.php?module=UserCountry&action=adminIndex&idSite=1&period=day&date=yesterday#location-providers">','</a>','<a href="http://piwik.org/faq/how-to/#faq_167">','</a>','<a href="http://piwik.org/faq/how-to/#faq_59">','</a>')|raw }}
-                    </div>
-                    {% endif %}
-
                     {% block content %}
                     {% endblock %}
 
                 </div>
             </div>
-            {% include "_piwikTag.twig" %}
         </div>
     </body>
 </html>

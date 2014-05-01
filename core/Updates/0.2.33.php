@@ -5,25 +5,25 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Updates
  */
+
+namespace Piwik\Updates;
+
 use Piwik\Common;
 use Piwik\DbHelper;
 use Piwik\Updater;
 use Piwik\Updates;
 
 /**
- * @package Updates
  */
-class Piwik_Updates_0_2_33 extends Updates
+class Updates_0_2_33 extends Updates
 {
-    static function getSql($schema = 'Myisam')
+    static function getSql()
     {
         $sqlarray = array(
             // 0.2.33 [1020]
             'ALTER TABLE `' . Common::prefixTable('user_dashboard') . '`
-				CONVERT TO CHARACTER SET utf8 COLLATE utf8_general_ci '                                                                            => '1146',
+				CONVERT TO CHARACTER SET utf8 COLLATE utf8_general_ci '                                                                      => '1146',
             'ALTER TABLE `' . Common::prefixTable('user_language') . '`
 				CONVERT TO CHARACTER SET utf8 COLLATE utf8_general_ci ' => '1146',
         );

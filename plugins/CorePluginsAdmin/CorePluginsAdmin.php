@@ -5,31 +5,33 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik_Plugins
- * @package CorePluginsAdmin
  */
 namespace Piwik\Plugins\CorePluginsAdmin;
 
+use Piwik\Config;
+use Piwik\Menu\MenuAdmin;
 use Piwik\Piwik;
+use Piwik\Plugin;
 use Piwik\ScheduledTask;
-use Piwik\ScheduledTime\Daily;
+use Piwik\ScheduledTime;
+use Piwik\Plugin\Manager as PluginManager;
 
 /**
  *
- * @package CorePluginsAdmin
  */
 class CorePluginsAdmin extends \Piwik\Plugin
 {
     /**
-     * @see Piwik_Plugin::getListHooksRegistered
+     * @see Piwik\Plugin::getListHooksRegistered
      */
     public function getListHooksRegistered()
     {
         return array(
-            'AdminMenu.add' => 'addMenu',
-            'AssetManager.getJsFiles' => 'getJsFiles',
-            'AssetManager.getStylesheetFiles' => 'getStylesheetFiles',
-            'TaskScheduler.getScheduledTasks' => 'getScheduledTasks',
+            'Menu.Admin.addItems'                    => 'addMenu',
+            'AssetManager.getJavaScriptFiles'        => 'getJsFiles',
+            'AssetManager.getStylesheetFiles'        => 'getStylesheetFiles',
+            'TaskScheduler.getScheduledTasks'        => 'getScheduledTasks',
+            'Translate.getClientSideTranslationKeys' => 'getClientSideTranslationKeys'
         );
     }
 
@@ -42,25 +44,43 @@ class CorePluginsAdmin extends \Piwik\Plugin
             'Piwik\Plugins\CorePluginsAdmin\MarketplaceApiClient',
             'clearAllCacheEntries',
             null,
-            new Daily(),
+            ScheduledTime::factory('daily'),
             ScheduledTask::LOWEST_PRIORITY
         );
+
+        if (self::isMarketplaceEnabled()) {
+            $sendUpdateNotification = new ScheduledTask ($this,
+                'sendNotificationIfUpdatesAvailable',
+                null,
+                ScheduledTime::factory('daily'),
+                ScheduledTask::LOWEST_PRIORITY);
+            $tasks[] = $sendUpdateNotification;
+        }
     }
 
-    public function getStylesheetFiles($stylesheets)
+    public function sendNotificationIfUpdatesAvailable()
+    {
+        $updateCommunication = new UpdateCommunication();
+        if ($updateCommunication->isEnabled()) {
+            $updateCommunication->sendNotificationIfUpdatesAvailable();
+        }
+    }
+
+    public function getStylesheetFiles(&$stylesheets)
     {
         $stylesheets[] = "plugins/CorePluginsAdmin/stylesheets/marketplace.less";
+        $stylesheets[] = "plugins/CorePluginsAdmin/stylesheets/plugins_admin.less";
     }
 
     function addMenu()
     {
         $pluginsUpdateMessage = '';
-        $themesUpdateMessage  = '';
+        $themesUpdateMessage = '';
 
-        if (Piwik::isUserIsSuperUser()) {
+        if (Piwik::hasUserSuperUserAccess() && static::isMarketplaceEnabled()) {
             $marketplace = new Marketplace();
             $pluginsHavingUpdate = $marketplace->getPluginsHavingUpdate($themesOnly = false);
-            $themesHavingUpdate  = $marketplace->getPluginsHavingUpdate($themesOnly = true);
+            $themesHavingUpdate = $marketplace->getPluginsHavingUpdate($themesOnly = true);
 
             if (!empty($pluginsHavingUpdate)) {
                 $pluginsUpdateMessage = sprintf(' (%d)', count($pluginsHavingUpdate));
@@ -70,25 +90,48 @@ class CorePluginsAdmin extends \Piwik\Plugin
             }
         }
 
-        Piwik_AddAdminSubMenu('CorePluginsAdmin_MenuPlatform', null, "", !Piwik::isUserIsAnonymous(), $order = 15);
-        Piwik_AddAdminSubMenu('CorePluginsAdmin_MenuPlatform', Piwik_Translate('General_Plugins') . $pluginsUpdateMessage,
+        MenuAdmin::getInstance()->add('CorePluginsAdmin_MenuPlatform', null, "", !Piwik::isUserIsAnonymous(), $order = 7);
+        MenuAdmin::getInstance()->add('CorePluginsAdmin_MenuPlatform', Piwik::translate('General_Plugins') . $pluginsUpdateMessage,
             array('module' => 'CorePluginsAdmin', 'action' => 'plugins', 'activated' => ''),
-            Piwik::isUserIsSuperUser(),
+            Piwik::hasUserSuperUserAccess(),
             $order = 1);
-        Piwik_AddAdminSubMenu('CorePluginsAdmin_MenuPlatform', Piwik_Translate('CorePluginsAdmin_Themes') . $themesUpdateMessage,
+        MenuAdmin::getInstance()->add('CorePluginsAdmin_MenuPlatform', Piwik::translate('CorePluginsAdmin_Themes') . $themesUpdateMessage,
             array('module' => 'CorePluginsAdmin', 'action' => 'themes', 'activated' => ''),
-            Piwik::isUserIsSuperUser(),
+            Piwik::hasUserSuperUserAccess(),
             $order = 3);
-        Piwik_AddAdminSubMenu('CorePluginsAdmin_MenuPlatform', 'CorePluginsAdmin_MenuExtend',
-            array('module' => 'CorePluginsAdmin', 'action' => 'extend', 'activated' => ''),
-            !Piwik::isUserIsAnonymous(),
-            $order = 5);
+
+        if (static::isMarketplaceEnabled()) {
+
+            MenuAdmin::getInstance()->add('CorePluginsAdmin_MenuPlatform', 'CorePluginsAdmin_Marketplace',
+                array('module' => 'CorePluginsAdmin', 'action' => 'extend', 'activated' => ''),
+                !Piwik::isUserIsAnonymous(),
+                $order = 5);
+
+        }
+    }
+
+    public static function isMarketplaceEnabled()
+    {
+        return (bool) Config::getInstance()->General['enable_marketplace'];
+    }
+
+    public static function isPluginsAdminEnabled()
+    {
+        return (bool) Config::getInstance()->General['enable_plugins_admin'];
     }
 
     public function getJsFiles(&$jsFiles)
     {
         $jsFiles[] = "plugins/CoreHome/javascripts/popover.js";
         $jsFiles[] = "plugins/CorePluginsAdmin/javascripts/pluginDetail.js";
+        $jsFiles[] = "plugins/CorePluginsAdmin/javascripts/pluginOverview.js";
+        $jsFiles[] = "plugins/CorePluginsAdmin/javascripts/pluginExtend.js";
+        $jsFiles[] = "plugins/CorePluginsAdmin/javascripts/plugins.js";
+    }
+
+    public function getClientSideTranslationKeys(&$translations)
+    {
+        $translations[] = 'CorePluginsAdmin_NoZipFileSelected';
     }
 
 }

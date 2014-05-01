@@ -12,9 +12,9 @@ $(document).ready(function () {
     $('.location-provider').change(function () {
         if (!$(this).is(':checked')) return; // only handle radio buttons that get checked
 
-        var parent = $(this).parent(),
+        var parent = $(this).closest('p'),
             loading = $('.loadingPiwik', parent),
-            ajaxSuccess = $('.ajaxSuccess', parent);
+            ajaxSuccess = $('.success', parent);
 
         var ajaxRequest = new ajaxHelper();
         ajaxRequest.setLoadingElement(loading);
@@ -25,10 +25,15 @@ $(document).ready(function () {
         }, 'get');
         ajaxRequest.setCallback(
             function () {
-                ajaxSuccess.fadeIn(1000, function () {
-                    setTimeout(function () {
-                        ajaxSuccess.fadeOut(1000);
-                    }, 2000);
+                var UI = require('piwik/UI');
+                var notification = new UI.Notification();
+                notification.show(_pk_translate('General_Done'), {
+                    placeat: ajaxSuccess,
+                    context: 'success',
+                    noclear: true,
+                    type: 'toast',
+                    style: {display:'inline-block', marginTop: '10px'},
+                    id: 'userCountryLocationProvider'
                 });
             }
         );
@@ -137,13 +142,20 @@ $(document).ready(function () {
             });
         })
         .on('click', '#update-geoip-links', function () {
-            $('#geoipdb-update-info-error').hide();
-
             var currentDownloading = null;
             var updateGeoIPSuccess = function (response) {
                 if (response && response.error) {
                     $('#geoip-progressbar-container').hide();
-                    $('#geoipdb-update-info-error').html(response.error).show();
+
+                    var UI = require('piwik/UI');
+                    var notification = new UI.Notification();
+                    notification.show(response.error, {
+                        placeat: '#geoipdb-update-info-error',
+                        context: 'error',
+                        style: {display: 'inline-block'},
+                        id: 'userCountryGeoIpUpdate'
+                    });
+
                 }
                 else if (response && response.to_download) {
                     var continuing = currentDownloading == response.to_download;
@@ -160,22 +172,27 @@ $(document).ready(function () {
                         continuing, {key: response.to_download}, updateGeoIPSuccess);
                 }
                 else {
-                    $('#geoipdb-update-info-error').hide();
                     $('#geoip-updater-progressbar-label').html('');
                     $('#geoip-progressbar-container').hide();
 
-                    // fade in/out Done message
-                    $('#done-updating-updater').fadeIn(1000, function () {
-                        setTimeout(function () {
-                            $('#done-updating-updater').fadeOut(1000);
-                        }, 3000);
+                    var UI = require('piwik/UI');
+                    var notification = new UI.Notification();
+                    notification.show(_pk_translate('General_Done'), {
+                        placeat: '#done-updating-updater',
+                        context: 'success',
+                        noclear: true,
+                        type: 'toast',
+                        style: {display: 'inline-block'},
+                        id: 'userCountryGeoIpUpdate'
                     });
+
+                    $('#geoip-updater-next-run-time').html(response.nextRunTime).parent().effect('highlight', {color: '#FFFFCB'}, 2000);
                 }
             };
 
             // setup the auto-updater
             var ajaxRequest = new ajaxHelper();
-            var periodSelected = $('#geoip-update-period-cell').find('>input:checked').val();
+            var periodSelected = $('#geoip-update-period-cell').find('input:checked').val();
             ajaxRequest.addParams({
                 period: periodSelected
             }, 'get');

@@ -17,7 +17,6 @@ class Test_Piwik_Integration_NonUnicodeTest extends IntegrationTestCase
     /**
      * @dataProvider getApiForTesting
      * @group        Integration
-     * @group        NonUnicodeTest
      */
     public function testApi($api, $params)
     {
@@ -30,7 +29,7 @@ class Test_Piwik_Integration_NonUnicodeTest extends IntegrationTestCase
             'Actions.getSiteSearchKeywords',
             'Actions.getPageTitles',
             'Actions.getPageUrls',
-            'Referers.getWebsites',
+            'Referrers.getWebsites',
         );
 
         return array(

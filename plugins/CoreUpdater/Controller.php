@@ -5,13 +5,10 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik_Plugins
- * @package CoreUpdater
  */
 namespace Piwik\Plugins\CoreUpdater;
 
 use Exception;
-use Piwik\API\Request;
 use Piwik\ArchiveProcessor\Rules;
 use Piwik\Common;
 use Piwik\Config;
@@ -19,22 +16,25 @@ use Piwik\DbHelper;
 use Piwik\Filechecks;
 use Piwik\Filesystem;
 use Piwik\Http;
+use Piwik\Option;
 use Piwik\Piwik;
+use Piwik\Plugin;
+use Piwik\Plugins\CorePluginsAdmin\Marketplace;
 use Piwik\Plugins\LanguagesManager\LanguagesManager;
+use Piwik\SettingsPiwik;
 use Piwik\SettingsServer;
 use Piwik\Unzip;
 use Piwik\UpdateCheck;
 use Piwik\Updater;
-use Piwik\Updater_UpdateErrorException;
 use Piwik\Version;
 use Piwik\View;
 use Piwik\View\OneClickDone;
+use Piwik\Plugin\Manager as PluginManager;
 
 /**
  *
- * @package CoreUpdater
  */
-class Controller extends \Piwik\Controller
+class Controller extends \Piwik\Plugin\Controller
 {
     const CONFIG_FILE_BACKUP = '/config/global.ini.auto-backup-before-update.php';
     const PATH_TO_EXTRACT_LATEST_VERSION = '/tmp/latest/';
@@ -43,6 +43,8 @@ class Controller extends \Piwik\Controller
     private $warningMessages = array();
     private $errorMessages = array();
     private $deactivatedPlugins = array();
+    private $pathPiwikZip = false;
+    private $newVersion;
 
     static protected function getLatestZipUrl($newVersion)
     {
@@ -54,35 +56,59 @@ class Controller extends \Piwik\Controller
 
     public function newVersionAvailable()
     {
-        Piwik::checkUserIsSuperUser();
+        Piwik::checkUserHasSuperUserAccess();
 
         $newVersion = $this->checkNewVersionIsAvailableOrDie();
 
         $view = new View('@CoreUpdater/newVersionAvailable');
+
         $view->piwik_version = Version::VERSION;
         $view->piwik_new_version = $newVersion;
+
+        $incompatiblePlugins = $this->getIncompatiblePlugins($newVersion);
+
+        $marketplacePlugins = array();
+        try {
+            if (!empty($incompatiblePlugins)) {
+                $marketplace = new Marketplace();
+                $marketplacePlugins = $marketplace->getAllAvailablePluginNames();
+            }
+        } catch (\Exception $e) {}
+
+        $view->marketplacePlugins = $marketplacePlugins;
+        $view->incompatiblePlugins = $incompatiblePlugins;
         $view->piwik_latest_version_url = self::getLatestZipUrl($newVersion);
-        $view->can_auto_update = Filechecks::canAutoUpdate();
+        $view->can_auto_update  = Filechecks::canAutoUpdate();
         $view->makeWritableCommands = Filechecks::getAutoUpdateMakeWritableMessage();
-        echo $view->render();
+
+        return $view->render();
     }
 
     public function oneClickUpdate()
     {
-        Piwik::checkUserIsSuperUser();
+        Piwik::checkUserHasSuperUserAccess();
         $this->newVersion = $this->checkNewVersionIsAvailableOrDie();
 
         SettingsServer::setMaxExecutionTime(0);
 
         $url = self::getLatestZipUrl($this->newVersion);
         $steps = array(
-            array('oneClick_Download', Piwik_Translate('CoreUpdater_DownloadingUpdateFromX', $url)),
-            array('oneClick_Unpack', Piwik_Translate('CoreUpdater_UnpackingTheUpdate')),
-            array('oneClick_Verify', Piwik_Translate('CoreUpdater_VerifyingUnpackedFiles')),
-            array('oneClick_CreateConfigFileBackup', Piwik_Translate('CoreUpdater_CreatingBackupOfConfigurationFile', self::CONFIG_FILE_BACKUP)),
-            array('oneClick_Copy', Piwik_Translate('CoreUpdater_InstallingTheLatestVersion')),
-            array('oneClick_Finished', Piwik_Translate('CoreUpdater_PiwikUpdatedSuccessfully')),
+            array('oneClick_Download', Piwik::translate('CoreUpdater_DownloadingUpdateFromX', $url)),
+            array('oneClick_Unpack', Piwik::translate('CoreUpdater_UnpackingTheUpdate')),
+            array('oneClick_Verify', Piwik::translate('CoreUpdater_VerifyingUnpackedFiles')),
+            array('oneClick_CreateConfigFileBackup', Piwik::translate('CoreUpdater_CreatingBackupOfConfigurationFile', self::CONFIG_FILE_BACKUP))
         );
+        $incompatiblePlugins = $this->getIncompatiblePlugins($this->newVersion);
+        if (!empty($incompatiblePlugins)) {
+            $namesToDisable = array();
+            foreach ($incompatiblePlugins as $incompatiblePlugin) {
+                $namesToDisable[] = $incompatiblePlugin->getPluginName();
+            }
+            $steps[] = array('oneClick_DisableIncompatiblePlugins', Piwik::translate('CoreUpdater_DisablingIncompatiblePlugins', implode(', ', $namesToDisable)));
+        }
+
+        $steps[] = array('oneClick_Copy', Piwik::translate('CoreUpdater_InstallingTheLatestVersion'));
+        $steps[] = array('oneClick_Finished', Piwik::translate('CoreUpdater_PiwikUpdatedSuccessfully'));
 
         $errorMessage = false;
         $messages = array();
@@ -98,46 +124,70 @@ class Controller extends \Piwik\Controller
             }
         }
 
-        // this is a magic template to trigger the Piwik_View_Update
         $view = new OneClickDone(Piwik::getCurrentUserTokenAuth());
         $view->coreError = $errorMessage;
         $view->feedbackMessages = $messages;
-        echo $view->render();
+        return $view->render();
     }
 
     public function oneClickResults()
     {
-        Request::reloadAuthUsingTokenAuth($_POST);
-        Piwik::checkUserIsSuperUser();
-
         $view = new View('@CoreUpdater/oneClickResults');
         $view->coreError = Common::getRequestVar('error', '', 'string', $_POST);
         $view->feedbackMessages = safe_unserialize(Common::unsanitizeInputValue(Common::getRequestVar('messages', '', 'string', $_POST)));
-        echo $view->render();
+        return $view->render();
+    }
+
+    protected function redirectToDashboardWhenNoError($updater)
+    {
+        if (count($updater->getSqlQueriesToExecute()) == 1
+            && !$this->coreError
+            && empty($this->warningMessages)
+            && empty($this->errorMessages)
+            && empty($this->deactivatedPlugins)
+        ) {
+            Piwik::redirectToModule('CoreHome');
+        }
+    }
+
+    protected static function clearPhpCaches()
+    {
+        if (function_exists('apc_clear_cache')) {
+            apc_clear_cache(); // clear the system (aka 'opcode') cache
+        }
+
+        if (function_exists('opcache_reset')) {
+            opcache_reset(); // reset the opcode cache (php 5.5.0+)
+        }
     }
 
     private function checkNewVersionIsAvailableOrDie()
     {
         $newVersion = UpdateCheck::isNewestVersionAvailable();
         if (!$newVersion) {
-            throw new Exception(Piwik_TranslateException('CoreUpdater_ExceptionAlreadyLatestVersion', Version::VERSION));
+            throw new Exception(Piwik::translate('CoreUpdater_ExceptionAlreadyLatestVersion', Version::VERSION));
         }
         return $newVersion;
     }
 
     private function oneClick_Download()
     {
-        $this->pathPiwikZip = PIWIK_USER_PATH . self::PATH_TO_EXTRACT_LATEST_VERSION . 'latest.zip';
+        $pathPiwikZip = PIWIK_USER_PATH . self::PATH_TO_EXTRACT_LATEST_VERSION . 'latest.zip';
+        $this->pathPiwikZip = SettingsPiwik::rewriteTmpPathWithHostname($pathPiwikZip);
+
         Filechecks::dieIfDirectoriesNotWritable(array(self::PATH_TO_EXTRACT_LATEST_VERSION));
 
         // we catch exceptions in the caller (i.e., oneClickUpdate)
         $url = self::getLatestZipUrl($this->newVersion) . '?cb=' . $this->newVersion;
-        $fetched = Http::fetchRemoteFile($url, $this->pathPiwikZip);
+
+        Http::fetchRemoteFile($url, $this->pathPiwikZip);
     }
 
     private function oneClick_Unpack()
     {
         $pathExtracted = PIWIK_USER_PATH . self::PATH_TO_EXTRACT_LATEST_VERSION;
+        $pathExtracted = SettingsPiwik::rewriteTmpPathWithHostname($pathExtracted);
+
         $this->pathRootExtractedPiwik = $pathExtracted . 'piwik';
 
         if (file_exists($this->pathRootExtractedPiwik)) {
@@ -147,11 +197,11 @@ class Controller extends \Piwik\Controller
         $archive = Unzip::factory('PclZip', $this->pathPiwikZip);
 
         if (0 == ($archive_files = $archive->extract($pathExtracted))) {
-            throw new Exception(Piwik_TranslateException('CoreUpdater_ExceptionArchiveIncompatible', $archive->errorInfo()));
+            throw new Exception(Piwik::translate('CoreUpdater_ExceptionArchiveIncompatible', $archive->errorInfo()));
         }
 
         if (0 == count($archive_files)) {
-            throw new Exception(Piwik_TranslateException('CoreUpdater_ExceptionArchiveEmpty'));
+            throw new Exception(Piwik::translate('CoreUpdater_ExceptionArchiveEmpty'));
         }
         unlink($this->pathPiwikZip);
     }
@@ -167,7 +217,7 @@ class Controller extends \Piwik\Controller
         );
         foreach ($someExpectedFiles as $file) {
             if (!is_file($this->pathRootExtractedPiwik . $file)) {
-                throw new Exception(Piwik_TranslateException('CoreUpdater_ExceptionArchiveIncomplete', $file));
+                throw new Exception(Piwik::translate('CoreUpdater_ExceptionArchiveIncomplete', $file));
             }
         }
     }
@@ -177,6 +227,15 @@ class Controller extends \Piwik\Controller
         $configFileBefore = PIWIK_USER_PATH . '/config/global.ini.php';
         $configFileAfter = PIWIK_USER_PATH . self::CONFIG_FILE_BACKUP;
         Filesystem::copy($configFileBefore, $configFileAfter);
+    }
+
+    private function oneClick_DisableIncompatiblePlugins()
+    {
+        $plugins = $this->getIncompatiblePlugins($this->newVersion);
+
+        foreach ($plugins as $plugin) {
+            PluginManager::getInstance()->deactivatePlugin($plugin->getPluginName());
+        }
     }
 
     private function oneClick_Copy()
@@ -227,9 +286,7 @@ class Controller extends \Piwik\Controller
 
         Filesystem::unlinkRecursive($this->pathRootExtractedPiwik, true);
 
-        if (function_exists('apc_clear_cache')) {
-            apc_clear_cache(); // clear the system (aka 'opcode') cache
-        }
+        self::clearPhpCaches();
     }
 
     private function oneClick_Finished()
@@ -242,15 +299,20 @@ class Controller extends \Piwik\Controller
         if (!empty($language)) {
             LanguagesManager::setLanguageForSession($language);
         }
-        $this->runUpdaterAndExit();
+
+        try {
+            return $this->runUpdaterAndExit();
+        } catch(NoUpdatesFoundException $e) {
+            Piwik::redirectToModule('CoreHome');
+        }
     }
 
-    protected function runUpdaterAndExit()
+    public function runUpdaterAndExit($doDryRun = null)
     {
         $updater = new Updater();
         $componentsWithUpdateFile = CoreUpdater::getComponentUpdates($updater);
         if (empty($componentsWithUpdateFile)) {
-            Piwik::redirectToModule('CoreHome');
+            throw new NoUpdatesFoundException("Everything is already up to date.");
         }
 
         SettingsServer::setMaxExecutionTime(0);
@@ -260,51 +322,63 @@ class Controller extends \Piwik\Controller
         $doneTemplate = '@CoreUpdater/runUpdaterAndExit_done' . $cli;
         $viewWelcome = new View($welcomeTemplate);
         $viewDone = new View($doneTemplate);
+        $doExecuteUpdates = Common::getRequestVar('updateCorePlugins', 0, 'integer') == 1;
 
-        $sqlQueries = $updater->getSqlQueriesToExecute();
+        if(is_null($doDryRun)) {
+            $doDryRun = !$doExecuteUpdates;
+        }
+
+        if($doDryRun) {
+            $viewWelcome->queries = $updater->getSqlQueriesToExecute();
+            $viewWelcome->isMajor = $updater->hasMajorDbUpdate();
+            $this->doWelcomeUpdates($viewWelcome, $componentsWithUpdateFile);
+            return $viewWelcome->render();
+        }
+
+        // CLI
         if (Common::isPhpCliMode()) {
             $this->doWelcomeUpdates($viewWelcome, $componentsWithUpdateFile);
-            echo $viewWelcome->render();
+            $output = $viewWelcome->render();
 
-            if (!$this->coreError && Piwik::getModule() == 'CoreUpdater') {
-                $this->doExecuteUpdates($viewDone, $updater, $componentsWithUpdateFile);
-                echo $viewDone->render();
-            }
-        } else {
-            if (Common::getRequestVar('updateCorePlugins', 0, 'integer') == 1) {
-                $this->warningMessages = array();
-                $this->doExecuteUpdates($viewDone, $updater, $componentsWithUpdateFile);
+            // Proceed with upgrade in CLI only if user specifically asked for it, or if running console command
+            $isUpdateRequested = Common::isRunningConsoleCommand() || Piwik::getModule() == 'CoreUpdater';
 
-                if (count($sqlQueries) == 1 && !$this->coreError) {
-                    Piwik::redirectToModule('CoreHome');
-                }
-                echo $viewDone->render();
-            } else {
-                $viewWelcome->queries = $sqlQueries;
-                $viewWelcome->isMajor = $updater->hasMajorDbUpdate();
-                $this->doWelcomeUpdates($viewWelcome, $componentsWithUpdateFile);
-                echo $viewWelcome->render();
+            if (!$this->coreError && $isUpdateRequested) {
+                $this->doExecuteUpdates($viewDone, $updater, $componentsWithUpdateFile);
+                $output .= $viewDone->render();
             }
+            return $output;
         }
+
+        // Web
+        if ($doExecuteUpdates) {
+            $this->warningMessages = array();
+            $this->doExecuteUpdates($viewDone, $updater, $componentsWithUpdateFile);
+
+            $this->redirectToDashboardWhenNoError($updater);
+
+            return $viewDone->render();
+        }
+
         exit;
     }
 
     private function doWelcomeUpdates($view, $componentsWithUpdateFile)
     {
         $view->new_piwik_version = Version::VERSION;
-        $view->commandUpgradePiwik = "<br /><code>php " . Filesystem::getPathToPiwikRoot() . "/index.php  -- \"module=CoreUpdater\" </code>";
+        $view->commandUpgradePiwik = "<br /><code>php " . Filesystem::getPathToPiwikRoot() . "/console core:update </code>";
         $pluginNamesToUpdate = array();
         $coreToUpdate = false;
 
         // handle case of existing database with no tables
         if (!DbHelper::isInstalled()) {
-            $this->errorMessages[] = Piwik_Translate('CoreUpdater_EmptyDatabaseError', Config::getInstance()->database['dbname']);
+            $this->errorMessages[] = Piwik::translate('CoreUpdater_EmptyDatabaseError', Config::getInstance()->database['dbname']);
             $this->coreError = true;
             $currentVersion = 'N/A';
         } else {
             $this->errorMessages = array();
             try {
-                $currentVersion = Piwik_GetOption('version_core');
+                $currentVersion = Option::get('version_core');
             } catch (Exception $e) {
                 $currentVersion = '<= 0.2.9';
             }
@@ -322,7 +396,7 @@ class Controller extends \Piwik\Controller
         $integrityInfo = Filechecks::getFileIntegrityInformation();
         if (isset($integrityInfo[1])) {
             if ($integrityInfo[0] == false) {
-                $this->warningMessages[] = Piwik_Translate('General_FileIntegrityWarningExplanation');
+                $this->warningMessages[] = Piwik::translate('General_FileIntegrityWarningExplanation');
             }
             $this->warningMessages = array_merge($this->warningMessages, array_slice($integrityInfo, 1));
         }
@@ -338,35 +412,21 @@ class Controller extends \Piwik\Controller
 
     private function doExecuteUpdates($view, $updater, $componentsWithUpdateFile)
     {
-        $this->loadAndExecuteUpdateFiles($updater, $componentsWithUpdateFile);
+        $result = CoreUpdater::updateComponents($updater, $componentsWithUpdateFile);
 
-        Filesystem::deleteAllCacheOnUpdate();
-
+        $this->coreError       = $result['coreError'];
+        $this->warningMessages = $result['warnings'];
+        $this->errorMessages   = $result['errors'];
+        $this->deactivatedPlugins = $result['deactivatedPlugins'];
         $view->coreError = $this->coreError;
         $view->warningMessages = $this->warningMessages;
         $view->errorMessages = $this->errorMessages;
         $view->deactivatedPlugins = $this->deactivatedPlugins;
     }
 
-    private function loadAndExecuteUpdateFiles($updater, $componentsWithUpdateFile)
+    private function getIncompatiblePlugins($piwikVersion)
     {
-        // if error in any core update, show message + help message + EXIT
-        // if errors in any plugins updates, show them on screen, disable plugins that errored + CONTINUE
-        // if warning in any core update or in any plugins update, show message + CONTINUE
-        // if no error or warning, success message + CONTINUE
-        foreach ($componentsWithUpdateFile as $name => $filenames) {
-            try {
-                $this->warningMessages = array_merge($this->warningMessages, $updater->update($name));
-            } catch (Updater_UpdateErrorException $e) {
-                $this->errorMessages[] = $e->getMessage();
-                if ($name == 'core') {
-                    $this->coreError = true;
-                    break;
-                } else {
-                    \Piwik\PluginsManager::getInstance()->deactivatePlugin($name);
-                    $this->deactivatedPlugins[] = $name;
-                }
-            }
-        }
+        return PluginManager::getInstance()->getIncompatiblePlugins($piwikVersion);
     }
+
 }

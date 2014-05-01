@@ -5,8 +5,6 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik_Plugins
- * @package Installation
  */
 namespace Piwik\Plugins\Installation;
 
@@ -14,16 +12,17 @@ use Exception;
 use HTML_QuickForm2_DataSource_Array;
 use HTML_QuickForm2_Factory;
 use HTML_QuickForm2_Rule;
+use Piwik\Config;
 use Piwik\Db\Adapter;
-use Piwik\DbHelper;
 use Piwik\Db;
+use Piwik\DbHelper;
 use Piwik\Filesystem;
+use Piwik\Piwik;
 use Piwik\QuickForm2;
 use Zend_Db_Adapter_Exception;
 
 /**
  *
- * @package Installation
  */
 class FormDatabaseSetup extends QuickForm2
 {
@@ -46,35 +45,35 @@ class FormDatabaseSetup extends QuickForm2
         }
 
         $this->addElement('text', 'host')
-            ->setLabel(Piwik_Translate('Installation_DatabaseSetupServer'))
-            ->addRule('required', Piwik_Translate('General_Required', Piwik_Translate('Installation_DatabaseSetupServer')));
+            ->setLabel(Piwik::translate('Installation_DatabaseSetupServer'))
+            ->addRule('required', Piwik::translate('General_Required', Piwik::translate('Installation_DatabaseSetupServer')));
 
         $user = $this->addElement('text', 'username')
-            ->setLabel(Piwik_Translate('Installation_DatabaseSetupLogin'));
-        $user->addRule('required', Piwik_Translate('General_Required', Piwik_Translate('Installation_DatabaseSetupLogin')));
+            ->setLabel(Piwik::translate('Installation_DatabaseSetupLogin'));
+        $user->addRule('required', Piwik::translate('General_Required', Piwik::translate('Installation_DatabaseSetupLogin')));
         $requiredPrivileges = Rule_checkUserPrivileges::getRequiredPrivilegesPretty();
         $user->addRule('checkUserPrivileges',
-            Piwik_Translate('Installation_InsufficientPrivilegesMain', $requiredPrivileges . '<br/><br/>') .
-                Piwik_Translate('Installation_InsufficientPrivilegesHelp'));
+            Piwik::translate('Installation_InsufficientPrivilegesMain', $requiredPrivileges . '<br/><br/>') .
+            Piwik::translate('Installation_InsufficientPrivilegesHelp'));
 
         $this->addElement('password', 'password')
-            ->setLabel(Piwik_Translate('General_Password'));
+            ->setLabel(Piwik::translate('General_Password'));
 
         $item = $this->addElement('text', 'dbname')
-            ->setLabel(Piwik_Translate('Installation_DatabaseSetupDatabaseName'));
-        $item->addRule('required', Piwik_Translate('General_Required', Piwik_Translate('Installation_DatabaseSetupDatabaseName')));
-        $item->addRule('checkValidFilename', Piwik_Translate('General_NotValid', Piwik_Translate('Installation_DatabaseSetupDatabaseName')));
+            ->setLabel(Piwik::translate('Installation_DatabaseSetupDatabaseName'));
+        $item->addRule('required', Piwik::translate('General_Required', Piwik::translate('Installation_DatabaseSetupDatabaseName')));
+        $item->addRule('checkValidFilename', Piwik::translate('General_NotValid', Piwik::translate('Installation_DatabaseSetupDatabaseName')));
 
         $this->addElement('text', 'tables_prefix')
-            ->setLabel(Piwik_Translate('Installation_DatabaseSetupTablePrefix'))
-            ->addRule('checkValidFilename', Piwik_Translate('General_NotValid', Piwik_Translate('Installation_DatabaseSetupTablePrefix')));
+            ->setLabel(Piwik::translate('Installation_DatabaseSetupTablePrefix'))
+            ->addRule('checkValidFilename', Piwik::translate('General_NotValid', Piwik::translate('Installation_DatabaseSetupTablePrefix')));
 
         $this->addElement('select', 'adapter')
-            ->setLabel(Piwik_Translate('Installation_DatabaseSetupAdapter'))
+            ->setLabel(Piwik::translate('Installation_DatabaseSetupAdapter'))
             ->loadOptions($adapters)
-            ->addRule('required', Piwik_Translate('General_Required', Piwik_Translate('Installation_DatabaseSetupAdapter')));
+            ->addRule('required', Piwik::translate('General_Required', Piwik::translate('Installation_DatabaseSetupAdapter')));
 
-        $this->addElement('submit', 'submit', array('value' => Piwik_Translate('General_Next') . ' »', 'class' => 'submit'));
+        $this->addElement('submit', 'submit', array('value' => Piwik::translate('General_Next') . ' »', 'class' => 'submit'));
 
         // default values
         $this->addDataSource(new HTML_QuickForm2_DataSource_Array(array(
@@ -108,6 +107,8 @@ class FormDatabaseSetup extends QuickForm2
             'tables_prefix' => $this->getSubmitValue('tables_prefix'),
             'adapter'       => $adapter,
             'port'          => $port,
+            'schema'        => Config::getInstance()->database['schema'],
+            'type'          => Config::getInstance()->database['type']
         );
 
         if (($portIndex = strpos($dbInfos['host'], '/')) !== false) {
@@ -156,7 +157,6 @@ class FormDatabaseSetup extends QuickForm2
  * - DROP
  * - CREATE TEMPORARY TABLES
  *
- * @package Installation
  */
 class Rule_checkUserPrivileges extends HTML_QuickForm2_Rule
 {
@@ -302,7 +302,6 @@ class Rule_checkUserPrivileges extends HTML_QuickForm2_Rule
 /**
  * Filename check for prefix/DB name
  *
- * @package Installation
  */
 class FormDatabaseSetup_Rule_checkValidFilename extends HTML_QuickForm2_Rule
 {
@@ -310,7 +309,7 @@ class FormDatabaseSetup_Rule_checkValidFilename extends HTML_QuickForm2_Rule
     {
         $prefix = $this->owner->getValue();
         return empty($prefix)
-            || Filesystem::isValidFilename($prefix);
+        || Filesystem::isValidFilename($prefix);
     }
 }
 

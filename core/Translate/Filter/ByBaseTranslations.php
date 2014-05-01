@@ -5,17 +5,12 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Piwik
  */
 
 namespace Piwik\Translate\Filter;
 
-use Piwik\Translate\Filter\FilterAbstract;
 
 /**
- * @package Piwik
- * @subpackage Piwik_Translate
  */
 class ByBaseTranslations extends FilterAbstract
 {
@@ -26,7 +21,7 @@ class ByBaseTranslations extends FilterAbstract
      *
      * @param array $baseTranslations
      */
-    public function __construct($baseTranslations=array())
+    public function __construct($baseTranslations = array())
     {
         $this->baseTranslations = $baseTranslations;
     }
@@ -34,7 +29,7 @@ class ByBaseTranslations extends FilterAbstract
     /**
      * Removes all translations that aren't present in the base translations set in constructor
      *
-     * @param  array  $translations
+     * @param  array $translations
      *
      * @return array   filtered translations
      */

@@ -5,29 +5,31 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Piwik
  */
 namespace Piwik\DataTable\Filter;
 
 use Piwik\DataTable;
-use Piwik\DataTable\Filter;
+use Piwik\DataTable\BaseFilter;
 
 /**
- * Delete all rows from the table that are not in the offset,offset+limit range
+ * Delete all rows from the table that are not in the given [offset, offset+limit) range.
+ * 
+ * **Basic example usage**
+ * 
+ *     // delete all rows from 5 -> 15
+ *     $dataTable->filter('Limit', array(5, 10));
  *
- * @package Piwik
- * @subpackage DataTable
+ * @api
  */
-class Limit extends Filter
+class Limit extends BaseFilter
 {
     /**
-     * Filter constructor.
+     * Constructor.
      *
-     * @param DataTable $table
-     * @param int $offset          Starting row (indexed from 0)
-     * @param int $limit           Number of rows to keep (specify -1 to keep all rows)
-     * @param bool $keepSummaryRow  Whether to keep the summary row or not.
+     * @param DataTable $table The DataTable that will be filtered eventually.
+     * @param int $offset The starting row index to keep.
+     * @param int $limit Number of rows to keep (specify -1 to keep all rows).
+     * @param bool $keepSummaryRow Whether to keep the summary row or not.
      */
     public function __construct($table, $offset, $limit = -1, $keepSummaryRow = false)
     {
@@ -39,13 +41,13 @@ class Limit extends Filter
     }
 
     /**
-     * Limits the given data table
+     * See {@link Limit}.
      *
      * @param DataTable $table
      */
     public function filter($table)
     {
-        $table->setRowsCountBeforeLimitFilter();
+        $table->setMetadata(DataTable::TOTAL_ROWS_BEFORE_LIMIT_METADATA_NAME, $table->getRowsCount());
 
         if ($this->keepSummaryRow) {
             $summaryRow = $table->getRowFromId(DataTable::ID_SUMMARY_ROW);

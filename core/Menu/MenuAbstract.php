@@ -5,30 +5,31 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Piwik_Menu
  */
 namespace Piwik\Menu;
 
 use Piwik\Common;
 use Piwik\Plugins\SitesManager\API;
+use Piwik\Singleton;
 
 /**
- * @package Piwik_Menu
+ * Base class for classes that manage one of Piwik's menus.
+ * 
+ * There are three menus in Piwik, the main menu, the top menu and the admin menu.
+ * Each menu has a class that manages the menu's content. Each class invokes
+ * a different event to allow plugins to add new menu items.
+ * 
+ * @static \Piwik\Menu\MenuAbstract getInstance()
  */
-abstract class MenuAbstract
+abstract class MenuAbstract extends Singleton
 {
 
     protected $menu = null;
     protected $menuEntries = array();
+    protected $menuEntriesToRemove = array();
     protected $edits = array();
     protected $renames = array();
     protected $orderingApplied = false;
-
-    /*
-     * Can't enforce static function in 5.2.
-     */
-    //abstract static public function getInstance();
 
     /**
      * Builds the menu, applies edits, renames
@@ -36,11 +37,12 @@ abstract class MenuAbstract
      *
      * @return Array
      */
-    public function get()
+    public function getMenu()
     {
         $this->buildMenu();
         $this->applyEdits();
         $this->applyRenames();
+        $this->applyRemoves();
         $this->applyOrdering();
         return $this->menu;
     }
@@ -48,30 +50,43 @@ abstract class MenuAbstract
     /**
      * Adds a new entry to the menu.
      *
-     * @param string $menuName
-     * @param string $subMenuName
-     * @param string $url
-     * @param bool $displayedForCurrentUser
-     * @param int $order
-     * @param bool|string $tooltip Tooltip to display.
+     * @param string $menuName The menu's category name. Can be a translation token.
+     * @param string $subMenuName The menu item's name. Can be a translation token.
+     * @param string|array $url The URL the admin menu entry should link to, or an array of query parameters
+     *                          that can be used to build the URL.
+     * @param boolean $displayedForCurrentUser Whether this menu entry should be displayed for the
+     *                                         current user. If false, the entry will not be added.
+     * @param int $order The order hint.
+     * @param false|string $tooltip An optional tooltip to display.
+     * @api
      */
-    public function add($menuName, $subMenuName, $url, $displayedForCurrentUser, $order = 50, $tooltip = false)
+    public function add($menuName, $subMenuName, $url, $displayedForCurrentUser = true, $order = 50, $tooltip = false)
     {
-        if ($displayedForCurrentUser) {
-            // make sure the idSite value used is numeric (hack-y fix for #3426)
-            if (!is_numeric(Common::getRequestVar('idSite', false))) {
-                $idSites = API::getInstance()->getSitesIdWithAtLeastViewAccess();
-                $url['idSite'] = reset($idSites);
-            }
-
-            $this->menuEntries[] = array(
-                $menuName,
-                $subMenuName,
-                $url,
-                $order,
-                $tooltip
-            );
+        if (!$displayedForCurrentUser) {
+            return;
         }
+
+        // make sure the idSite value used is numeric (hack-y fix for #3426)
+        if (!is_numeric(Common::getRequestVar('idSite', false))) {
+            $idSites = API::getInstance()->getSitesIdWithAtLeastViewAccess();
+            $url['idSite'] = reset($idSites);
+        }
+
+        $this->menuEntries[] = array(
+            $menuName,
+            $subMenuName,
+            $url,
+            $order,
+            $tooltip
+        );
+    }
+
+    public function remove($menuName, $subMenuName = false)
+    {
+        $this->menuEntriesToRemove[] = array(
+            $menuName,
+            $subMenuName
+        );
     }
 
     /**
@@ -148,14 +163,38 @@ abstract class MenuAbstract
             $mainMenuToEdit = $edit[0];
             $subMenuToEdit = $edit[1];
             $newUrl = $edit[2];
-            if (!isset($this->menu[$mainMenuToEdit][$subMenuToEdit])) {
+
+            if ($subMenuToEdit === null) {
+                $menuDataToEdit = @$this->menu[$mainMenuToEdit];
+            } else {
+                $menuDataToEdit = @$this->menu[$mainMenuToEdit][$subMenuToEdit];
+            }
+
+            if (empty($menuDataToEdit)) {
                 $this->buildMenuItem($mainMenuToEdit, $subMenuToEdit, $newUrl);
             } else {
-                $this->menu[$mainMenuToEdit][$subMenuToEdit]['_url'] = $newUrl;
+                $menuDataToEdit['_url'] = $newUrl;
             }
         }
     }
 
+    private function applyRemoves()
+    {
+        foreach($this->menuEntriesToRemove as $menuToDelete) {
+
+            if(empty($menuToDelete[1])) {
+                // Delete Main Menu
+                if(isset($this->menu[$menuToDelete[0]])) {
+                    unset($this->menu[$menuToDelete[0]]);
+                }
+            } else {
+                // Delete Sub Menu
+                if(isset($this->menu[$menuToDelete[0]][$menuToDelete[1]])) {
+                    unset($this->menu[$menuToDelete[0]][$menuToDelete[1]]);
+                }
+            }
+        }
+    }
     /**
      * Applies renames to the menu.
      */

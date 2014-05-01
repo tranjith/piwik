@@ -5,22 +5,16 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Piwik
  */
 namespace Piwik;
 
 use Exception;
 
 /**
- * Code originally inspired from OpenX
- * - openx/plugins_repo/openXDeliveryCacheStore/extensions/deliveryCacheStore/oxCacheFile/oxCacheFile.class.php
- * - openx/plugins_repo/openXDeliveryCacheStore/extensions/deliveryCacheStore/oxCacheFile/oxCacheFile.delivery.php
+ * This class is used to cache data on the filesystem.
  *
- * We may want to add support for cache expire, storing last modification time in the file. See code in:
- * - openx/lib/max/Delivery/cache.php
+ * It is for example used by the Tracker process to cache various settings and websites attributes in tmp/cache/tracker/*
  *
- * @package Piwik
  */
 class CacheFile
 {
@@ -43,12 +37,14 @@ class CacheFile
     const MINIMUM_TTL = 60;
 
     /**
-     * @param string $directory            directory to use
-     * @param int $timeToLiveInSeconds  TTL
+     * @param string $directory directory to use
+     * @param int $timeToLiveInSeconds TTL
      */
     public function __construct($directory, $timeToLiveInSeconds = 300)
     {
-        $this->cachePath = PIWIK_USER_PATH . '/tmp/cache/' . $directory . '/';
+        $cachePath = PIWIK_USER_PATH . '/tmp/cache/' . $directory . '/';
+        $this->cachePath = SettingsPiwik::rewriteTmpPathWithHostname($cachePath);
+
         if ($timeToLiveInSeconds < self::MINIMUM_TTL) {
             $timeToLiveInSeconds = self::MINIMUM_TTL;
         }
@@ -58,7 +54,7 @@ class CacheFile
     /**
      * Function to fetch a cache entry
      *
-     * @param string $id  The cache entry ID
+     * @param string $id The cache entry ID
      * @return array|bool  False on error, or array the cache content
      */
     public function get($id)
@@ -109,8 +105,9 @@ class CacheFile
     /**
      * A function to store content a cache entry.
      *
-     * @param string $id       The cache entry ID
-     * @param array $content  The cache content
+     * @param string $id The cache entry ID
+     * @param array $content The cache content
+     * @throws \Exception
      * @return bool  True if the entry was succesfully stored
      */
     public function set($id, $content)
@@ -166,7 +163,7 @@ class CacheFile
     /**
      * A function to delete a single cache entry
      *
-     * @param string $id  The cache entry ID
+     * @param string $id The cache entry ID
      * @return bool  True if the entry was succesfully deleted
      */
     public function delete($id)

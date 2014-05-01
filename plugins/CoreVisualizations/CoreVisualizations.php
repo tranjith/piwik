@@ -5,8 +5,6 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik_Plugins
- * @package CoreVisualizations
  */
 
 namespace Piwik\Plugins\CoreVisualizations;
@@ -23,23 +21,23 @@ require_once PIWIK_INCLUDE_PATH . '/plugins/CoreVisualizations/Visualizations/Jq
 class CoreVisualizations extends \Piwik\Plugin
 {
     /**
-     * @see Piwik_Plugin::getListHooksRegistered
+     * @see Piwik\Plugin::getListHooksRegistered
      */
     public function getListHooksRegistered()
     {
         return array(
-            'AssetManager.getStylesheetFiles'          => 'getStylesheetFiles',
-            'AssetManager.getJsFiles'                  => 'getJsFiles',
-            'ViewDataTable.Visualization.getAvailable' => 'getAvailableDataTableVisualizations',
-            'Translate.getClientSideTranslationKeys'   => 'getClientSideTranslationKeys'
+            'AssetManager.getStylesheetFiles'        => 'getStylesheetFiles',
+            'AssetManager.getJavaScriptFiles'        => 'getJsFiles',
+            'ViewDataTable.addViewDataTable'         => 'getAvailableDataTableVisualizations',
+            'Translate.getClientSideTranslationKeys' => 'getClientSideTranslationKeys'
         );
     }
 
     public function getAvailableDataTableVisualizations(&$visualizations)
     {
+        $visualizations[] = 'Piwik\\Plugins\\CoreVisualizations\\Visualizations\\Sparkline';
         $visualizations[] = 'Piwik\\Plugins\\CoreVisualizations\\Visualizations\\HtmlTable';
         $visualizations[] = 'Piwik\\Plugins\\CoreVisualizations\\Visualizations\\HtmlTable\\AllColumns';
-        $visualizations[] = 'Piwik\\Plugins\\CoreVisualizations\\Visualizations\\HtmlTable\\Goals';
         $visualizations[] = 'Piwik\\Plugins\\CoreVisualizations\\Visualizations\\Cloud';
         $visualizations[] = 'Piwik\\Plugins\\CoreVisualizations\\Visualizations\\JqplotGraph\\Pie';
         $visualizations[] = 'Piwik\\Plugins\\CoreVisualizations\\Visualizations\\JqplotGraph\\Bar';

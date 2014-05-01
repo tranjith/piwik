@@ -5,20 +5,20 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Updates
  */
+
+namespace Piwik\Updates;
+
 use Piwik\Common;
 use Piwik\SettingsServer;
 use Piwik\Updater;
 use Piwik\Updates;
 
 /**
- * @package Updates
  */
-class Piwik_Updates_0_9_1 extends Updates
+class Updates_0_9_1 extends Updates
 {
-    static function getSql($schema = 'Myisam')
+    static function getSql()
     {
         if (!SettingsServer::isTimezoneSupportEnabled()) {
             return array();
@@ -39,7 +39,7 @@ class Piwik_Updates_0_9_1 extends Updates
         return array(
             'UPDATE ' . Common::prefixTable('site') . '
 				SET timezone = "UTC" 
-				WHERE timezone IN (' . $timezoneList . ')'                                                                  => false,
+				WHERE timezone IN (' . $timezoneList . ')'                                                            => false,
 
             'UPDATE `' . Common::prefixTable('option') . '`
 				SET option_value = "UTC" 

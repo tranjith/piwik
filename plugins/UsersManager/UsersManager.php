@@ -5,12 +5,12 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik_Plugins
- * @package UsersManager
  */
 namespace Piwik\Plugins\UsersManager;
 
 use Exception;
+use Piwik\Db;
+use Piwik\Menu\MenuAdmin;
 use Piwik\Option;
 use Piwik\Piwik;
 use Piwik\SettingsPiwik;
@@ -18,7 +18,6 @@ use Piwik\SettingsPiwik;
 /**
  * Manage Piwik users
  *
- * @package UsersManager
  */
 class UsersManager extends \Piwik\Plugin
 {
@@ -26,18 +25,25 @@ class UsersManager extends \Piwik\Plugin
     const PASSWORD_MAX_LENGTH = 26;
 
     /**
-     * @see Piwik_Plugin::getListHooksRegistered
+     * @see Piwik\Plugin::getListHooksRegistered
      */
     public function getListHooksRegistered()
     {
         return array(
-            'AdminMenu.add'                          => 'addMenu',
-            'AssetManager.getJsFiles'                => 'getJsFiles',
+            'Menu.Admin.addItems'                    => 'addMenu',
+            'AssetManager.getJavaScriptFiles'        => 'getJsFiles',
             'AssetManager.getStylesheetFiles'        => 'getStylesheetFiles',
-            'SitesManager.deleteSite'                => 'deleteSite',
-            'Common.fetchWebsiteAttributes'          => 'recordAdminUsersInCache',
+            'SitesManager.deleteSite.end'            => 'deleteSite',
+            'Tracker.Cache.getSiteAttributes'        => 'recordAdminUsersInCache',
             'Translate.getClientSideTranslationKeys' => 'getClientSideTranslationKeys',
+            'Platform.initialized'                   => 'onPlatformInitialized'
         );
+    }
+
+    public function onPlatformInitialized()
+    {
+        $lastSeenTimeLogger = new LastSeenTimeLogger();
+        $lastSeenTimeLogger->logCurrentUserLastSeenTime();
     }
 
     /**
@@ -66,13 +72,13 @@ class UsersManager extends \Piwik\Plugin
      */
     public function deleteSite($idSite)
     {
-        Option::getInstance()->deleteLike('%\_' . API::PREFERENCE_DEFAULT_REPORT, $idSite);
+        Option::deleteLike('%\_' . API::PREFERENCE_DEFAULT_REPORT, $idSite);
     }
 
     /**
      * Return list of plug-in specific JavaScript files to be imported by the asset manager
      *
-     * @see Piwik_AssetManager
+     * @see Piwik\AssetManager
      */
     public function getJsFiles(&$jsFiles)
     {
@@ -93,11 +99,11 @@ class UsersManager extends \Piwik\Plugin
      */
     function addMenu()
     {
-        Piwik_AddAdminSubMenu('CoreAdminHome_MenuManage', 'UsersManager_MenuUsers',
+        MenuAdmin::getInstance()->add('CoreAdminHome_MenuManage', 'UsersManager_MenuUsers',
             array('module' => 'UsersManager', 'action' => 'index'),
             Piwik::isUserHasSomeAdminAccess(),
             $order = 2);
-        Piwik_AddAdminSubMenu('CoreAdminHome_MenuManage', 'UsersManager_MenuUserSettings',
+        MenuAdmin::getInstance()->add('CoreAdminHome_MenuManage', 'UsersManager_MenuUserSettings',
             array('module' => 'UsersManager', 'action' => 'userSettings'),
             Piwik::isUserHasSomeViewAccess(),
             $order = 3);
@@ -123,7 +129,7 @@ class UsersManager extends \Piwik\Plugin
     public static function checkPassword($password)
     {
         if (!self::isValidPasswordString($password)) {
-            throw new Exception(Piwik_TranslateException('UsersManager_ExceptionInvalidPassword', array(self::PASSWORD_MIN_LENGTH,
+            throw new Exception(Piwik::translate('UsersManager_ExceptionInvalidPassword', array(self::PASSWORD_MIN_LENGTH,
                                                                                                         self::PASSWORD_MAX_LENGTH)));
         }
     }
@@ -139,6 +145,10 @@ class UsersManager extends \Piwik\Plugin
     {
         $translationKeys[] = "General_OrCancel";
         $translationKeys[] = "General_Save";
+        $translationKeys[] = "General_Done";
         $translationKeys[] = "UsersManager_DeleteConfirm";
+        $translationKeys[] = "UsersManager_ConfirmGrantSuperUserAccess";
+        $translationKeys[] = "UsersManager_ConfirmProhibitOtherUsersSuperUserAccess";
+        $translationKeys[] = "UsersManager_ConfirmProhibitMySuperUserAccess";
     }
 }

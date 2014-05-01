@@ -14,7 +14,7 @@ require_once PIWIK_INCLUDE_PATH . '/tests/PHPUnit/MockLocationProvider.php';
 /**
  * Adds one site and tracks 60 visits (15 visitors, one action per visit).
  */
-class Test_Piwik_Fixture_ManyVisitsWithMockLocationProvider extends Test_Piwik_BaseFixture
+class Test_Piwik_Fixture_ManyVisitsWithMockLocationProvider extends Fixture
 {
     public $idSite = 1;
     public $dateTime = '2010-01-03 01:22:33';
@@ -34,12 +34,14 @@ class Test_Piwik_Fixture_ManyVisitsWithMockLocationProvider extends Test_Piwik_B
 
     public function tearDown()
     {
-        $this->unsetMockLocationProvider();
+        Test_Piwik_Fixture_ManyVisitsWithGeoIP::unsetLocationProvider();
     }
 
     private function setUpWebsitesAndGoals()
     {
-        self::createWebsite($this->dateTime);
+        if (!self::siteCreated($idSite = 1)) {
+            self::createWebsite($this->dateTime);
+        }
     }
 
     private function trackVisits()
@@ -141,7 +143,7 @@ class Test_Piwik_Fixture_ManyVisitsWithMockLocationProvider extends Test_Piwik_B
             $this->trackAction($t, $actionType, $visitorCounter, null);
 
             for ($j = 0; $j != 4; ++$j) {
-                // NOTE: to test referers w/o creating too many visits, we don't actually track 4 actions, but
+                // NOTE: to test referrers w/o creating too many visits, we don't actually track 4 actions, but
                 //	   4 separate visits
                 $actionDate = $visitDate->addHour($j + 1);
 
@@ -217,8 +219,4 @@ class Test_Piwik_Fixture_ManyVisitsWithMockLocationProvider extends Test_Piwik_B
         );
     }
 
-    private function unsetMockLocationProvider()
-    {
-        LocationProvider::setCurrentProvider('default');
-    }
 }

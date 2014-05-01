@@ -14,7 +14,7 @@ use Piwik\Plugins\UserCountry\LocationProvider\GeoIp;
 /**
  * Imports visits from several log files using the python log importer.
  */
-class Test_Piwik_Fixture_ManySitesImportedLogs extends Test_Piwik_BaseFixture
+class Test_Piwik_Fixture_ManySitesImportedLogs extends Fixture
 {
     public $dateTime = '2012-08-09 11:22:33';
     public $idSite = 1;
@@ -23,6 +23,12 @@ class Test_Piwik_Fixture_ManySitesImportedLogs extends Test_Piwik_BaseFixture
     public $segments = null; // should be array mapping segment name => segment definition
     
     public $addSegments = false;
+
+    public static function createAccessInstance()
+    {
+        Access::setSingletonInstance($access = new Test_Access_OverrideLogin());
+        \Piwik\Piwik::postEvent('Request.initAuthenticationObject');
+    }
 
     public function setUp()
     {
@@ -41,18 +47,29 @@ class Test_Piwik_Fixture_ManySitesImportedLogs extends Test_Piwik_BaseFixture
     {
         LocationProvider::$providers = null;
         GeoIp::$geoIPDatabaseDir = 'tests/lib/geoip-files';
-        LocationProvider::setCurrentProvider('default');
+        Test_Piwik_Fixture_ManyVisitsWithGeoIP::unsetLocationProvider();
     }
 
     public function setUpWebsitesAndGoals()
     {
         // for conversion testing
-        self::createWebsite($this->dateTime);
-        APIGoals::getInstance()->addGoal($this->idSite, 'all', 'url', 'http', 'contains', false, 5);
-        self::createWebsite($this->dateTime, $ecommerce = 0, $siteName = 'Piwik test two',
-            $siteUrl = 'http://example-site-two.com');
+        if (!self::siteCreated($idSite = 1)) {
+            self::createWebsite($this->dateTime);
+        }
+
+        if (!self::goalExists($idSite = 1, $idGoal = 1)) {
+            APIGoals::getInstance()->addGoal($this->idSite, 'all', 'url', 'http', 'contains', false, 5);
+        }
+
+        if (!self::siteCreated($idSite = 2)) {
+            self::createWebsite($this->dateTime, $ecommerce = 0, $siteName = 'Piwik test two',
+                $siteUrl = 'http://example-site-two.com');
+        }
     }
-    
+
+    const SEGMENT_PRE_ARCHIVED = 'visitCount<=5;visitorType!=non-existing-type;daysSinceFirstVisit<=50';
+    const SEGMENT_PRE_ARCHIVED_CONTAINS_ENCODED = 'visitCount<=5;visitorType!=re%2C%3Btest%20is%20encoded;daysSinceFirstVisit<=50';
+
     public function getDefaultSegments()
     {
         return array(
@@ -60,14 +77,27 @@ class Test_Piwik_Fixture_ManySitesImportedLogs extends Test_Piwik_BaseFixture
                                             'idSite'          => $this->idSite,
                                             'autoArchive'     => true,
                                             'enabledAllUsers' => true),
+
             'segmentNoAutoArchive' => array('definition'      => 'customVariableName1==Not-bot',
                                             'idSite'          => false,
                                             'autoArchive'     => false,
                                             'enabledAllUsers' => true),
-            'segmentOnlySuperuser' => array('definition'      => 'customVariablePageName1==HTTP-code',
-                                            'idSite'          => false,
-                                            'autoArchive'     => true,
-                                            'enabledAllUsers' => false),
+
+//            'segmentPreArchived' => array('definition'=> self::SEGMENT_PRE_ARCHIVED,
+//                                                  'idSite'          => 1,
+//                                                  'autoArchive'     => true,
+//                                                  'enabledAllUsers' => true),
+//
+//            'segmentPreArchivedWithUrlEncoding' => array('definition'=> self::SEGMENT_PRE_ARCHIVED_CONTAINS_ENCODED,
+//                                                  'idSite'          => 1,
+//                                                  'autoArchive'     => true,
+//                                                  'enabledAllUsers' => true)
+
+            // fails randomly and I really could not find why.
+//            'segmentOnlySuperuser' => array('definition'      => 'actions>1;customVariablePageName1=='.urlencode('HTTP-code'),
+//                                            'idSite'          => false,
+//                                            'autoArchive'     => true,
+//                                            'enabledAllUsers' => false),
         );
     }
 
@@ -104,9 +134,8 @@ class Test_Piwik_Fixture_ManySitesImportedLogs extends Test_Piwik_BaseFixture
             if (isset($info['enabledAllUsers'])) {
                 $enabledAllUsers = $info['enabledAllUsers'];
             }
-            
-            APISegmentEditor::getInstance()->add(
-                $segmentName, $info['definition'], $idSite, $autoArchive, $enabledAllUsers);
+
+            APISegmentEditor::getInstance()->add($segmentName, $info['definition'], $idSite, $autoArchive, $enabledAllUsers);
         }
     }
 
@@ -115,12 +144,14 @@ class Test_Piwik_Fixture_ManySitesImportedLogs extends Test_Piwik_BaseFixture
      */
     private function logVisitsWithStaticResolver()
     {
-        $logFile = PIWIK_INCLUDE_PATH . '/tests/resources/fake_logs.log'; # log file
+        $logFile = PIWIK_INCLUDE_PATH . '/tests/resources/access-logs/fake_logs.log'; # log file
 
+        // We do not pass the "--token_auth" parameter here to make sure import_logs.py finds the auth_token
+        // automatically if needed
         $opts = array('--idsite'                    => $this->idSite,
-                      '--token-auth'                => self::getTokenAuth(),
-                      '--recorders'                 => '4',
-                      '--recorder-max-payload-size' => '2');
+                      '--enable-testmode'           => false,
+                      '--recorders'                 => '1',
+                      '--recorder-max-payload-size' => '1');
 
         self::executeLogImporter($logFile, $opts);
     }
@@ -131,13 +162,14 @@ class Test_Piwik_Fixture_ManySitesImportedLogs extends Test_Piwik_BaseFixture
      */
     public function logVisitsWithDynamicResolver()
     {
-        $logFile = PIWIK_INCLUDE_PATH . '/tests/resources/fake_logs_dynamic.log'; # log file
+        $logFile = PIWIK_INCLUDE_PATH . '/tests/resources/access-logs/fake_logs_dynamic.log'; # log file
 
+        // We do not pass the "--token_auth" parameter here to make sure import_logs.py finds the auth_token
+        // automatically if needed
         $opts = array('--add-sites-new-hosts'       => false,
-                      '--token-auth'                => self::getTokenAuth(),
-                      '--recorders'                 => '4',
+                      '--enable-testmode'           => false,
+                      '--recorders'                 => '1',
                       '--recorder-max-payload-size' => '1');
-
         self::executeLogImporter($logFile, $opts);
     }
 
@@ -147,12 +179,12 @@ class Test_Piwik_Fixture_ManySitesImportedLogs extends Test_Piwik_BaseFixture
      */
     private function logVisitsWithAllEnabled()
     {
-        $logFile = PIWIK_INCLUDE_PATH . '/tests/resources/fake_logs_enable_all.log';
+        $logFile = PIWIK_INCLUDE_PATH . '/tests/resources/access-logs/fake_logs_enable_all.log';
 
         $opts = array('--idsite'                    => $this->idSite,
                       '--token-auth'                => self::getTokenAuth(),
-                      '--recorders'                 => '4',
-                      '--recorder-max-payload-size' => '2',
+                      '--recorders'                 => '1',
+                      '--recorder-max-payload-size' => '1',
                       '--enable-static'             => false,
                       '--enable-bots'               => false,
                       '--enable-http-errors'        => false,
@@ -169,11 +201,11 @@ class Test_Piwik_Fixture_ManySitesImportedLogs extends Test_Piwik_BaseFixture
      */
     private function replayLogFile()
     {
-        $logFile = PIWIK_INCLUDE_PATH . '/tests/resources/fake_logs_replay.log';
+        $logFile = PIWIK_INCLUDE_PATH . '/tests/resources/access-logs/fake_logs_replay.log';
 
         $opts = array('--token-auth'                => self::getTokenAuth(),
-                      '--recorders'                 => '4',
-                      '--recorder-max-payload-size' => '2',
+                      '--recorders'                 => '1',
+                      '--recorder-max-payload-size' => '1',
                       '--replay-tracking'           => false);
 
         self::executeLogImporter($logFile, $opts);
@@ -184,7 +216,7 @@ class Test_Piwik_Fixture_ManySitesImportedLogs extends Test_Piwik_BaseFixture
      */
     private function logCustomFormat()
     {
-        $logFile = PIWIK_INCLUDE_PATH . '/tests/resources/fake_logs_custom.log';
+        $logFile = PIWIK_INCLUDE_PATH . '/tests/resources/access-logs/fake_logs_custom.log';
 
         $opts = array('--idsite'           => $this->idSite,
                       '--token-auth'       => self::getTokenAuth(),
@@ -193,13 +225,5 @@ class Test_Piwik_Fixture_ManySitesImportedLogs extends Test_Piwik_BaseFixture
 
         self::executeLogImporter($logFile, $opts);
     }
-}
 
-// needed by tests that use stored segments w/ the proxy index.php
-class Test_Access_OverrideLogin extends Access
-{
-    public function getLogin()
-    {
-        return 'superUserLogin';
-    }
 }

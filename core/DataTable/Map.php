@@ -5,21 +5,26 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Piwik
  */
 namespace Piwik\DataTable;
+
+use Piwik\Common;
 use Piwik\DataTable;
 use Piwik\DataTable\Renderer\Console;
 
 /**
- * The DataTable_Array is a way to store an array of dataTable.
- * The Set implements some of the features of the DataTable such as queueFilter, getRowsCount.
+ * Stores an array of {@link DataTable}s indexed by one type of {@link DataTable} metadata (such as site ID
+ * or period).
+ * 
+ * DataTable Maps are returned on all queries that involve multiple sites and/or multiple
+ * periods. The Maps will contain a {@link DataTable} for each site and period combination.
+ * 
+ * The Map implements some {@link DataTable} such as {@link queueFilter()} and {@link getRowsCount}.
  *
- * @package Piwik
- * @subpackage DataTable
+ *
+ * @api
  */
-class Map
+class Map implements DataTableInterface
 {
     /**
      * Array containing the DataTable withing this Set
@@ -29,21 +34,17 @@ class Map
     protected $array = array();
 
     /**
-     * This is the label used to index the tables.
-     * For example if the tables are indexed using the timestamp of each period
-     * eg. $this->array[1045886960] = new DataTable();
-     * the keyName would be 'timestamp'.
-     *
-     * This label is used in the Renderer (it becomes a column name or the XML description tag)
-     *
+     * @see self::getKeyName()
      * @var string
      */
     protected $keyName = 'defaultKeyName';
 
     /**
-     * Returns the keyName string @see self::$keyName
+     * Returns a string description of the data used to index the DataTables.
      *
-     * @return string
+     * This label is used by DataTable Renderers (it becomes a column name or the XML description tag).
+     *
+     * @return string eg, `'idSite'`, `'period'`
      */
     public function getKeyName()
     {
@@ -51,7 +52,7 @@ class Map
     }
 
     /**
-     * Set the keyName @see self::$keyName
+     * Set the name of they metadata used to index {@link DataTable}s. See {@link getKeyName()}.
      *
      * @param string $name
      */
@@ -61,66 +62,68 @@ class Map
     }
 
     /**
-     * Returns the number of DataTable in this DataTable_Array
+     * Returns the number of {@link DataTable}s in this DataTable\Map.
      *
      * @return int
      */
     public function getRowsCount()
     {
-        return count($this->array);
+        return count($this->getDataTables());
     }
 
     /**
-     * Queue a filter to the DataTable_Array will queue this filter to every DataTable of the DataTable_Array.
+     * Queue a filter to {@link DataTable} child of contained by this instance.
+     * 
+     * See {@link Piwik\DataTable::queueFilter()} for more information..
      *
-     * @param string $className   Filter name, eg. Limit
-     * @param array $parameters  Filter parameters, eg. array( 50, 10 )
+     * @param string|Closure $className Filter name, eg. `'Limit'` or a Closure.
+     * @param array $parameters Filter parameters, eg. `array(50, 10)`.
      */
     public function queueFilter($className, $parameters = array())
     {
-        foreach ($this->array as $table) {
+        foreach ($this->getDataTables() as $table) {
             $table->queueFilter($className, $parameters);
         }
     }
 
     /**
-     * Apply the filters previously queued to each of the DataTable of this DataTable_Array.
+     * Apply the filters previously queued to each DataTable contained by this DataTable\Map.
      */
     public function applyQueuedFilters()
     {
-        foreach ($this->array as $table) {
+        foreach ($this->getDataTables() as $table) {
             $table->applyQueuedFilters();
         }
     }
 
     /**
-     * Apply a filter to all tables in the array
+     * Apply a filter to all tables contained by this instance.
      *
-     * @param string $className   Name of filter class
-     * @param array $parameters  Filter parameters
+     * @param string|Closure $className Name of filter class or a Closure.
+     * @param array $parameters Parameters to pass to the filter.
      */
     public function filter($className, $parameters = array())
     {
-        foreach ($this->array as $id => $table) {
+        foreach ($this->getDataTables() as $id => $table) {
             $table->filter($className, $parameters);
         }
     }
 
     /**
-     * Returns the array of DataTable
+     * Returns the array of DataTables contained by this class.
      *
-     * @return DataTable[]
+     * @return DataTable[]|Map[]
      */
-    public function getArray()
+    public function getDataTables()
     {
         return $this->array;
     }
 
     /**
-     * Returns the table with the specified label.
+     * Returns the table with the specific label.
      *
      * @param string $label
-     * @return DataTable
+     * @return DataTable|Map
      */
     public function getTable($label)
     {
@@ -128,27 +131,30 @@ class Map
     }
 
     /**
-     * Returns the first row
-     * This method can be used to treat DataTable and DataTable_Array in the same way
+     * Returns the first element in the Map's array.
      *
-     * @return Row
+     * @return DataTable|Map|false
      */
     public function getFirstRow()
     {
-        foreach ($this->array as $table) {
-            $row = $table->getFirstRow();
-            if ($row !== false) {
-                return $row;
-            }
-        }
-        return false;
+        return reset($this->array);
     }
 
     /**
-     * Adds a new DataTable to the DataTable_Array
+     * Returns the last element in the Map's array.
+     * 
+     * @return DataTable|Map|false
+     */
+    public function getLastRow()
+    {
+        return end($this->array);
+    }
+
+    /**
+     * Adds a new {@link DataTable} or Map instance to this DataTable\Map.
      *
-     * @param DataTable $table
-     * @param string $label  Label used to index this table in the array
+     * @param DataTable|Map $table
+     * @param string $label Label used to index this table in the array.
      */
     public function addTable($table, $label)
     {
@@ -156,8 +162,8 @@ class Map
     }
 
     /**
-     * Returns a string output of this DataTable_Array (applying the default renderer to every DataTable
-     * of this DataTable_Array).
+     * Returns a string output of this DataTable\Map (applying the default renderer to every {@link DataTable}
+     * of this DataTable\Map).
      *
      * @return string
      */
@@ -169,72 +175,78 @@ class Map
     }
 
     /**
-     * @see DataTable::enableRecursiveSort()
+     * See {@link DataTable::enableRecursiveSort()}.
      */
     public function enableRecursiveSort()
     {
-        foreach ($this->array as $table) {
+        foreach ($this->getDataTables() as $table) {
             $table->enableRecursiveSort();
         }
     }
 
     /**
-     * Renames the given column
+     * Renames the given column in each contained {@link DataTable}.
      *
-     * @see DataTable::renameColumn
+     * See {@link DataTable::renameColumn()}.
+     * 
      * @param string $oldName
      * @param string $newName
      */
     public function renameColumn($oldName, $newName)
     {
-        foreach ($this->array as $table) {
+        foreach ($this->getDataTables() as $table) {
             $table->renameColumn($oldName, $newName);
         }
     }
 
     /**
-     * Deletes the given columns
+     * Deletes the specified columns in each contained {@link DataTable}.
      *
-     * @see DataTable::deleteColumns
-     * @param array $columns
+     * See {@link DataTable::deleteColumns()}.
+     * 
+     * @param array $columns The columns to delete.
+     * @param bool $deleteRecursiveInSubtables This param is currently not used.
      */
-    public function deleteColumns($columns)
+    public function deleteColumns($columns, $deleteRecursiveInSubtables = false)
     {
-        foreach ($this->array as $table) {
+        foreach ($this->getDataTables() as $table) {
             $table->deleteColumns($columns);
         }
     }
 
+    /**
+     * Deletes a table from the array of DataTables.
+     * 
+     * @param string $id The label associated with {@link DataTable}.
+     */
     public function deleteRow($id)
     {
-        foreach ($this->array as $table) {
-            $table->deleteRow($id);
-        }
+        unset($this->array[$id]);
     }
 
     /**
-     * Deletes the given column
+     * Deletes the given column in every contained {@link DataTable}.
      *
      * @see DataTable::deleteColumn
-     * @param string $column
+     * @param string $name
      */
-    public function deleteColumn($column)
+    public function deleteColumn($name)
     {
-        foreach ($this->array as $table) {
-            $table->deleteColumn($column);
+        foreach ($this->getDataTables() as $table) {
+            $table->deleteColumn($name);
         }
     }
 
     /**
-     * Returns the array containing all rows values in all data tables for the requested column
+     * Returns the array containing all column values in all contained {@link DataTable}s for the requested column.
      *
-     * @param string $name
+     * @param string $name The column name.
      * @return array
      */
     public function getColumn($name)
     {
         $values = array();
-        foreach ($this->array as $table) {
+        foreach ($this->getDataTables() as $table) {
             $moreValues = $table->getColumn($name);
             foreach ($moreValues as &$value) {
                 $values[] = $value;
@@ -244,51 +256,53 @@ class Map
     }
 
     /**
-     * Merges the rows of every child DataTable into a new DataTable and
+     * Merges the rows of every child {@link DataTable} into a new one and
      * returns it. This function will also set the label of the merged rows
-     * to the label of the DataTable they were originally from.
+     * to the label of the {@link DataTable} they were originally from.
      *
      * The result of this function is determined by the type of DataTable
-     * this instance holds. If this DataTable_Array instance holds an array
+     * this instance holds. If this DataTable\Map instance holds an array
      * of DataTables, this function will transform it from:
-     * <code>
-     * Label 0:
-     *   DataTable(row1)
-     * Label 1:
-     *   DataTable(row2)
-     * </code>
+     * 
+     *     Label 0:
+     *       DataTable(row1)
+     *     Label 1:
+     *       DataTable(row2)
+     * 
      * to:
-     * <code>
-     * DataTable(row1[label = 'Label 0'], row2[label = 'Label 1'])
-     * </code>
+     * 
+     *     DataTable(row1[label = 'Label 0'], row2[label = 'Label 1'])
      *
-     * If this instance holds an array of DataTable_Arrays, this function will
+     * If this instance holds an array of DataTable\Maps, this function will
      * transform it from:
-     * <code>
-     * Outer Label 0:            // the outer DataTable_Array
-     *   Inner Label 0:            // one of the inner DataTable_Arrays
-     *     DataTable(row1)
-     *   Inner Label 1:
-     *     DataTable(row2)
-     * Outer Label 1:
-     *   Inner Label 0:
-     *     DataTable(row3)
-     *   Inner Label 1:
-     *     DataTable(row4)
-     * </code>
+     * 
+     *     Outer Label 0:            // the outer DataTable\Map
+     *       Inner Label 0:            // one of the inner DataTable\Maps
+     *         DataTable(row1)
+     *       Inner Label 1:
+     *         DataTable(row2)
+     *     Outer Label 1:
+     *       Inner Label 0:
+     *         DataTable(row3)
+     *       Inner Label 1:
+     *         DataTable(row4)
+     * 
      * to:
-     * <code>
-     * Inner Label 0:
-     *   DataTable(row1[label = 'Outer Label 0'], row3[label = 'Outer Label 1'])
-     * Inner Label 1:
-     *   DataTable(row2[label = 'Outer Label 0'], row4[label = 'Outer Label 1'])
-     * </code>
+     * 
+     *     Inner Label 0:
+     *       DataTable(row1[label = 'Outer Label 0'], row3[label = 'Outer Label 1'])
+     *     Inner Label 1:
+     *       DataTable(row2[label = 'Outer Label 0'], row4[label = 'Outer Label 1'])
      *
-     * In addition, if this instance holds an array of DataTable_Arrays, the
+     * If this instance holds an array of DataTable\Maps, the
      * metadata of the first child is used as the metadata of the result.
      *
      * This function can be used, for example, to smoosh IndexedBySite archive
      * query results into one DataTable w/ different rows differentiated by site ID.
+     *
+     * Note: This DataTable/Map will be destroyed and will be no longer usable after the tables have been merged into
+     *       the new dataTable to reduce memory usage. Destroying all DataTables witihn the Map also seems to fix a
+     *       Segmentation Fault that occurred in the AllWebsitesDashboard when having > 16k sites.
      *
      * @return DataTable|Map
      */
@@ -299,11 +313,12 @@ class Map
         if ($firstChild instanceof Map) {
             $result = $firstChild->getEmptyClone();
 
-            foreach ($this->array as $label => $subTableArray) {
-                foreach ($subTableArray->array as $innerLabel => $subTable) {
+            /** @var $subDataTableMap Map */
+            foreach ($this->getDataTables() as $label => $subDataTableMap) {
+                foreach ($subDataTableMap->getDataTables() as $innerLabel => $subTable) {
                     if (!isset($result->array[$innerLabel])) {
                         $dataTable = new DataTable();
-                        $dataTable->metadata = $subTable->metadata;
+                        $dataTable->setMetadataValues($subTable->getAllTableMetadata());
 
                         $result->addTable($dataTable, $innerLabel);
                     }
@@ -314,9 +329,12 @@ class Map
         } else {
             $result = new DataTable();
 
-            foreach ($this->array as $label => $subTable) {
+            foreach ($this->getDataTables() as $label => $subTable) {
                 $this->copyRowsAndSetLabel($result, $subTable, $label);
+                Common::destroy($subTable);
             }
+
+            $this->array = array();
         }
 
         return $result;
@@ -326,9 +344,9 @@ class Map
      * Utility function used by mergeChildren. Copies the rows from one table,
      * sets their 'label' columns to a value and adds them to another table.
      *
-     * @param DataTable $toTable    The table to copy rows to.
-     * @param DataTable $fromTable  The table to copy rows from.
-     * @param string $label      The value to set the 'label' column of every copied row.
+     * @param DataTable $toTable The table to copy rows to.
+     * @param DataTable $fromTable The table to copy rows from.
+     * @param string $label The value to set the 'label' column of every copied row.
      */
     private function copyRowsAndSetLabel($toTable, $fromTable, $label)
     {
@@ -338,61 +356,62 @@ class Map
 
             $columns = array_merge(array('label' => $label), $oldColumns);
             $row = new Row(array(
-                                                Row::COLUMNS              => $columns,
-                                                Row::METADATA             => $fromRow->getMetadata(),
-                                                Row::DATATABLE_ASSOCIATED => $fromRow->getIdSubDataTable()
-                                           ));
+                                Row::COLUMNS              => $columns,
+                                Row::METADATA             => $fromRow->getMetadata(),
+                                Row::DATATABLE_ASSOCIATED => $fromRow->getIdSubDataTable()
+                           ));
             $toTable->addRow($row);
         }
     }
 
     /**
-     * Adds a DataTable to all the tables in this array
-     * NOTE: Will only add $tableToSum if the childTable has some rows
+     * Sums a DataTable to all the tables in this array.
+     * 
+     * _Note: Will only add `$tableToSum` if the childTable has some rows._
      *
+     * See {@link Piwik\DataTable::addDataTable()}.
+     * 
      * @param DataTable $tableToSum
      */
     public function addDataTable(DataTable $tableToSum)
     {
-        foreach ($this->getArray() as $childTable) {
-            if ($childTable->getRowsCount() > 0) {
-                $childTable->addDataTable($tableToSum);
-            }
+        foreach ($this->getDataTables() as $childTable) {
+            $childTable->addDataTable($tableToSum);
         }
     }
 
     /**
-     * Returns a new DataTable_Array w/ child tables that have had their
+     * Returns a new DataTable\Map w/ child tables that have had their
      * subtables merged.
      *
-     * @see DataTable::mergeSubtables
+     * See {@link DataTable::mergeSubtables()}.
      *
      * @return Map
      */
     public function mergeSubtables()
     {
         $result = $this->getEmptyClone();
-        foreach ($this->array as $label => $childTable) {
+        foreach ($this->getDataTables() as $label => $childTable) {
             $result->addTable($childTable->mergeSubtables(), $label);
         }
         return $result;
     }
 
     /**
-     * Returns a new DataTable_Array w/o any child DataTables, but with
+     * Returns a new DataTable\Map w/o any child DataTables, but with
      * the same key name as this instance.
      *
      * @return Map
      */
     public function getEmptyClone()
     {
-        $newTableArray = new Map;
-        $newTableArray->setKeyName($this->getKeyName());
-        return $newTableArray;
+        $dataTableMap = new Map;
+        $dataTableMap->setKeyName($this->getKeyName());
+        return $dataTableMap;
     }
 
     /**
-     * Returns the intersection of children's meta data arrays
+     * Returns the intersection of children's metadata arrays (what they all have in common).
      *
      * @param string $name The metadata name.
      * @return mixed
@@ -400,7 +419,7 @@ class Map
     public function getMetadataIntersectArray($name)
     {
         $data = array();
-        foreach ($this->getArray() as $childTable) {
+        foreach ($this->getDataTables() as $childTable) {
             $childData = $childTable->getMetadata($name);
             if (is_array($childData)) {
                 $data = array_intersect($data, $childData);
@@ -410,13 +429,13 @@ class Map
     }
 
     /**
-     * @see DataTable::getColumns()
-     * 
+     * See {@link DataTable::getColumns()}.
+     *
      * @return array
      */
     public function getColumns()
     {
-        foreach ($this->getArray() as $childTable) {
+        foreach ($this->getDataTables() as $childTable) {
             if ($childTable->getRowsCount() > 0) {
                 return $childTable->getColumns();
             }

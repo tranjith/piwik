@@ -459,9 +459,9 @@
                     // modify the starred count & make sure the correct image is used
                     var newStarCount = starredCount + starAmt;
                     if (newStarCount > 0) {
-                        var newImg = 'plugins/Zeitgeist/images/yellow_marker.png';
+                        var newImg = 'plugins/Zeitgeist/images/annotations_starred.png';
                     } else {
-                        var newImg = 'plugins/Zeitgeist/images/grey_marker.png';
+                        var newImg = 'plugins/Zeitgeist/images/annotations.png';
                     }
                     $(this).attr('data-starred', newStarCount).find('img').attr('src', newImg);
 
@@ -519,6 +519,12 @@
 
             loadingAnnotationManager = true;
 
+            var isDashboard = !!$('#dashboardWidgetsArea').length;
+
+            if (isDashboard) {
+                $('.loadingPiwikBelow', domElem).insertAfter($('.evolution-annotations', domElem));
+            }
+
             var loading = $('.loadingPiwikBelow', domElem).css({display: 'block'});
 
             // the annotations for this report have not been retrieved yet, so do an ajax request
@@ -539,7 +545,12 @@
                 loading.css('visibility', 'hidden');
 
                 // add & show annotation manager
-                $('.dataTableFeatures', domElem).append(manager);
+                if (isDashboard) {
+                    manager.insertAfter($('.evolution-annotations', domElem));
+                } else {
+                    $('.dataTableFeatures', domElem).append(manager);
+                }
+
                 manager.slideDown('slow', function () {
                     loading.hide().css('visibility', 'visible');
                     loadingAnnotationManager = false;

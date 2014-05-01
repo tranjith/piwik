@@ -5,8 +5,6 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Piwik
  */
 namespace Piwik\DataAccess;
 
@@ -14,11 +12,12 @@ use Exception;
 use Piwik\ArchiveProcessor\Rules;
 use Piwik\ArchiveProcessor;
 use Piwik\Common;
+
 use Piwik\Config;
 use Piwik\Db;
 use Piwik\Db\BatchInsert;
+use Piwik\Log;
 use Piwik\Period;
-use Piwik\Piwik;
 use Piwik\Segment;
 use Piwik\SettingsPiwik;
 
@@ -30,6 +29,26 @@ use Piwik\SettingsPiwik;
 class ArchiveWriter
 {
     const PREFIX_SQL_LOCK = "locked_";
+    /**
+     * Flag stored at the end of the archiving
+     *
+     * @var int
+     */
+    const DONE_OK = 1;
+    /**
+     * Flag stored at the start of the archiving
+     * When requesting an Archive, we make sure that non-finished archive are not considered valid
+     *
+     * @var int
+     */
+    const DONE_ERROR = 2;
+    /**
+     * Flag indicates the archive is over a period that is not finished, eg. the current day, current week, etc.
+     * Archives flagged will be regularly purged from the DB.
+     *
+     * @var int
+     */
+    const DONE_OK_TEMPORARY = 3;
 
     protected $fields = array('idarchive',
                               'idsite',
@@ -40,16 +59,46 @@ class ArchiveWriter
                               'name',
                               'value');
 
-    public function __construct($idSite, Segment $segment, Period $period, $requestedPlugin, $isArchiveTemporary)
+    public function __construct(ArchiveProcessor\Parameters $params, $isArchiveTemporary)
     {
         $this->idArchive = false;
-        $this->idSite = $idSite;
-        $this->segment = $segment;
-        $this->period = $period;
-        $this->doneFlag = Rules::getDoneStringFlagFor($segment, $period->getLabel(), $requestedPlugin);
+        $this->idSite = $params->getSite()->getId();
+        $this->segment = $params->getSegment();
+        $this->period = $params->getPeriod();
+        $idSites = array($this->idSite);
+        $this->doneFlag = Rules::getDoneStringFlagFor($idSites, $this->segment, $this->period->getLabel(), $params->getRequestedPlugin(), $params->isSkipAggregationOfSubTables());
         $this->isArchiveTemporary = $isArchiveTemporary;
 
         $this->dateStart = $this->period->getDateStart();
+    }
+
+    /**
+     * @param string $name
+     * @param string[] $values
+     */
+    public function insertBlobRecord($name, $values)
+    {
+        if (is_array($values)) {
+            $clean = array();
+            foreach ($values as $id => $value) {
+                // for the parent Table we keep the name
+                // for example for the Table of searchEngines we keep the name 'referrer_search_engine'
+                // but for the child table of 'Google' which has the ID = 9 the name would be 'referrer_search_engine_9'
+                $newName = $name;
+                if ($id != 0) {
+                    //FIXMEA: refactor
+                    $newName = $name . '_' . $id;
+                }
+
+                $value = $this->compress($value);
+                $clean[] = array($newName, $value);
+            }
+            $this->insertBulkRecords($clean);
+            return;
+        }
+
+        $values = $this->compress($values);
+        $this->insertRecord($name, $values);
     }
 
     public function getIdArchive()
@@ -62,18 +111,43 @@ class ArchiveWriter
 
     public function initNewArchive()
     {
-        $this->acquireLock();
         $this->allocateNewArchiveId();
         $this->logArchiveStatusAsIncomplete();
     }
 
-    protected function acquireLock()
+    public function finalizeArchive()
     {
-        $lockName = $this->getArchiveProcessorLockName();
-        $result = Db::getDbLock($lockName, $maxRetries = 30);
-        if (!$result) {
-            Piwik::log("SELECT GET_LOCK failed to acquire lock. Proceeding anyway.");
+        $this->deletePreviousArchiveStatus();
+        $this->logArchiveStatusAsFinal();
+    }
+
+    static protected function compress($data)
+    {
+        if (Db::get()->hasBlobDataType()) {
+            return gzcompress($data);
         }
+        return $data;
+    }
+
+    protected function getArchiveLockName()
+    {
+        $numericTable = $this->getTableNumeric();
+        $dbLockName = "allocateNewArchiveId.$numericTable";
+        return $dbLockName;
+    }
+
+    protected function acquireArchiveTableLock()
+    {
+        $dbLockName = $this->getArchiveLockName();
+        if (Db::getDbLock($dbLockName, $maxRetries = 30) === false) {
+            throw new Exception("allocateNewArchiveId: Cannot get named lock $dbLockName.");
+        }
+    }
+
+    protected function releaseArchiveTableLock()
+    {
+        $dbLockName = $this->getArchiveLockName();
+        Db::releaseDbLock($dbLockName);
     }
 
     protected function allocateNewArchiveId()
@@ -82,21 +156,26 @@ class ArchiveWriter
         return $this->idArchive;
     }
 
+    /**
+     * Locks the archive table to generate a new archive ID.
+     *
+     * We lock to make sure that
+     * if several archiving processes are running at the same time (for different websites and/or periods)
+     * then they will each use a unique archive ID.
+     *
+     * @return int
+     */
     protected function insertNewArchiveId()
     {
         $numericTable = $this->getTableNumeric();
         $idSite = $this->idSite;
 
-        $db = Db::get();
+        $this->acquireArchiveTableLock();
+
         $locked = self::PREFIX_SQL_LOCK . Common::generateUniqId();
         $date = date("Y-m-d H:i:s");
-        $dbLockName = "allocateNewArchiveId.$numericTable";
-
-        if (Db::getDbLock($dbLockName, $maxRetries = 30) === false) {
-            throw new Exception("allocateNewArchiveId: Cannot get named lock for table $numericTable.");
-        }
         $insertSql = "INSERT INTO $numericTable "
-            . " SELECT ifnull(max(idarchive),0)+1,
+            . " SELECT IFNULL( MAX(idarchive), 0 ) + 1,
 								'" . $locked . "',
 								" . (int)$idSite . ",
 								'" . $date . "',
@@ -105,79 +184,45 @@ class ArchiveWriter
 								'" . $date . "',
 								0 "
             . " FROM $numericTable as tb1";
-        try { // TODO: this is temporary, remove when deadlocking issue is fixed
-            $db->exec($insertSql);
-        } catch (Exception $ex) {
-            if (Db::get()->isErrNo($ex, 1213)) {
-                $deadlockInfo = \Piwik\Db::fetchAll("SHOW ENGINE INNODB STATUS");
-                Piwik::log("DEADLOCK INFO: " . print_r($deadlockInfo));
-            }
-            throw $ex;
-        }
-        Db::releaseDbLock($dbLockName);
+        Db::get()->exec($insertSql);
+
+        $this->releaseArchiveTableLock();
+
         $selectIdSql = "SELECT idarchive FROM $numericTable WHERE name = ? LIMIT 1";
-        $id = $db->fetchOne($selectIdSql, $locked);
+        $id = Db::get()->fetchOne($selectIdSql, $locked);
         return $id;
     }
 
     protected function logArchiveStatusAsIncomplete()
     {
-        $statusWhileProcessing = ArchiveProcessor::DONE_ERROR;
+        $statusWhileProcessing = self::DONE_ERROR;
         $this->insertRecord($this->doneFlag, $statusWhileProcessing);
-    }
-
-    protected function getArchiveProcessorLockName()
-    {
-        return self::makeLockName($this->idSite, $this->period, $this->segment);
-    }
-
-    protected static function makeLockName($idsite, Period $period, Segment $segment)
-    {
-        $config = Config::getInstance();
-
-        $lockName = 'piwik.'
-            . $config->database['dbname'] . '.'
-            . $config->database['tables_prefix'] . '/'
-            . $idsite . '/'
-            . (!$segment->isEmpty() ? $segment->getHash() . '/' : '')
-            . $period->getId() . '/'
-            . $period->getDateStart()->toString('Y-m-d') . ','
-            . $period->getDateEnd()->toString('Y-m-d');
-        return $lockName . '/' . md5($lockName . SettingsPiwik::getSalt());
-    }
-
-    public function finalizeArchive()
-    {
-        $this->deletePreviousArchiveStatus();
-        $this->logArchiveStatusAsFinal();
-        $this->releaseArchiveProcessorLock();
     }
 
     protected function deletePreviousArchiveStatus()
     {
+        // without advisory lock here, the DELETE would acquire Exclusive Lock
+        $this->acquireArchiveTableLock();
 
         Db::query("DELETE FROM " . $this->getTableNumeric() . "
-					WHERE idarchive = ? AND (name = '" . $this->doneFlag . "' OR name LIKE '" . self::PREFIX_SQL_LOCK . "%')",
+					WHERE idarchive = ? AND (name = '" . $this->doneFlag
+                    . "' OR name LIKE '" . self::PREFIX_SQL_LOCK . "%')",
             array($this->getIdArchive())
         );
+
+        $this->releaseArchiveTableLock();
     }
 
     protected function logArchiveStatusAsFinal()
     {
-        $status = ArchiveProcessor::DONE_OK;
+        $status = self::DONE_OK;
         if ($this->isArchiveTemporary) {
-            $status = ArchiveProcessor::DONE_OK_TEMPORARY;
+            $status = self::DONE_OK_TEMPORARY;
         }
         $this->insertRecord($this->doneFlag, $status);
     }
 
-    protected function releaseArchiveProcessorLock()
-    {
-        $lockName = $this->getArchiveProcessorLockName();
-        return Db::releaseDbLock($lockName);
-    }
-
-    public function insertBulkRecords($records)
+    protected function insertBulkRecords($records)
     {
         // Using standard plain INSERT if there is only one record to insert
         if ($DEBUG_DO_NOT_USE_BULK_INSERT = false

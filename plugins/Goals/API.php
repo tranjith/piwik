@@ -5,23 +5,19 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik_Plugins
- * @package Goals
  */
 namespace Piwik\Plugins\Goals;
 
 use Exception;
 use Piwik\Archive;
-use Piwik\Metrics;
-use Piwik\Piwik;
 use Piwik\Common;
 use Piwik\DataTable;
-use Piwik\Site;
 use Piwik\Db;
+use Piwik\Metrics;
+use Piwik\Piwik;
+use Piwik\Site;
 use Piwik\Tracker\Cache;
 use Piwik\Tracker\GoalManager;
-use Piwik\Plugins\Goals\Goals;
-use Piwik\Plugins\Goals\Archiver;
 
 /**
  * Goals API lets you Manage existing goals, via "updateGoal" and "deleteGoal", create new Goals via "addGoal",
@@ -41,22 +37,11 @@ use Piwik\Plugins\Goals\Archiver;
  *
  * See also the documentation about <a href='http://piwik.org/docs/tracking-goals-web-analytics/' target='_blank'>Tracking Goals</a> in Piwik.
  *
- * @package Goals
+ * @method static \Piwik\Plugins\Goals\API getInstance()
  */
-class API
+class API extends \Piwik\Plugin\API
 {
-    static private $instance = null;
-
-    /**
-     * @return \Piwik\Plugins\Goals\API
-     */
-    static public function getInstance()
-    {
-        if (self::$instance == null) {
-            self::$instance = new self;
-        }
-        return self::$instance;
-    }
+    const AVG_PRICE_VIEWED = 'avg_price_viewed';
 
     /**
      * Returns all Goals for a given website, or list of websites
@@ -177,7 +162,7 @@ class API
         if ($patternType == 'exact'
             && substr($pattern, 0, 4) != 'http'
         ) {
-            throw new Exception(Piwik_TranslateException('Goals_ExceptionInvalidMatchingString', array("http:// or https://", "http://www.yourwebsite.com/newsletter/subscribed.html")));
+            throw new Exception(Piwik::translate('Goals_ExceptionInvalidMatchingString', array("http:// or https://", "http://www.yourwebsite.com/newsletter/subscribed.html")));
         }
     }
 
@@ -207,7 +192,7 @@ class API
 										WHERE idsite = ?
 											AND idgoal = ?",
             array($idSite, $idGoal));
-        Db::deleteAllRows(Common::prefixTable("log_conversion"), "WHERE idgoal = ?", 100000, array($idGoal));
+        Db::deleteAllRows(Common::prefixTable("log_conversion"), "WHERE idgoal = ? AND idsite = ?", "idvisit", 100000, array($idGoal, $idSite));
         Cache::regenerateCacheWebsiteAttributes($idSite);
     }
 
@@ -215,17 +200,24 @@ class API
      * Returns a datatable of Items SKU/name or categories and their metrics
      * If $abandonedCarts set to 1, will return items abandoned in carts. If set to 0, will return items ordered
      */
-    protected function getItems($recordName, $idSite, $period, $date, $abandonedCarts)
+    protected function getItems($recordName, $idSite, $period, $date, $abandonedCarts, $segment)
     {
         Piwik::checkUserHasViewAccess($idSite);
         $recordNameFinal = $recordName;
         if ($abandonedCarts) {
             $recordNameFinal = Archiver::getItemRecordNameAbandonedCart($recordName);
         }
-        $archive = Archive::build($idSite, $period, $date);
+        $archive = Archive::build($idSite, $period, $date, $segment);
         $dataTable = $archive->getDataTable($recordNameFinal);
 
         $dataTable->filter('Sort', array(Metrics::INDEX_ECOMMERCE_ITEM_REVENUE));
+
+        $this->enrichItemsTableWithViewMetrics($dataTable, $recordName, $idSite, $period, $date, $segment);
+
+        // First rename the avg_price_viewed column
+        $renameColumn = array(self::AVG_PRICE_VIEWED => 'avg_price');
+        $dataTable->queueFilter('ReplaceColumnNames', array($renameColumn));
+
         $dataTable->queueFilter('ReplaceColumnNames');
         $dataTable->queueFilter('ReplaceSummaryRowLabel');
 
@@ -239,53 +231,9 @@ class API
         $dataTable->queueFilter('ColumnCallbackAddColumnQuotient', array('avg_price', 'price', $ordersColumn, GoalManager::REVENUE_PRECISION));
 
         // Average quantity = sum product quantity / abandoned carts
-        $dataTable->queueFilter('ColumnCallbackAddColumnQuotient', array('avg_quantity', 'quantity', $ordersColumn, $precision = 1));
+        $dataTable->queueFilter('ColumnCallbackAddColumnQuotient',
+            array('avg_quantity', 'quantity', $ordersColumn, $precision = 1));
         $dataTable->queueFilter('ColumnDelete', array('price'));
-
-        // Enrich the datatable with Product/Categories views, and conversion rates
-        $customVariables = \Piwik\Plugins\CustomVariables\API::getInstance()->getCustomVariables($idSite, $period, $date, $segment = false, $expanded = false,
-            $_leavePiwikCoreVariables = true);
-        $mapping = array(
-            'Goals_ItemsSku'      => '_pks',
-            'Goals_ItemsName'     => '_pkn',
-            'Goals_ItemsCategory' => '_pkc',
-        );
-        $reportToNotDefinedString = array(
-            'Goals_ItemsSku'      => Piwik_Translate('General_NotDefined', Piwik_Translate('Goals_ProductSKU')), // Note: this should never happen
-            'Goals_ItemsName'     => Piwik_Translate('General_NotDefined', Piwik_Translate('Goals_ProductName')),
-            'Goals_ItemsCategory' => Piwik_Translate('General_NotDefined', Piwik_Translate('Goals_ProductCategory'))
-        );
-        $notDefinedStringPretty = $reportToNotDefinedString[$recordName];
-        $customVarNameToLookFor = $mapping[$recordName];
-
-        // Handle case where date=last30&period=day
-        if ($customVariables instanceof DataTable\Map) {
-            $customVariableDatatables = $customVariables->getArray();
-            $dataTables = $dataTable->getArray();
-            foreach ($customVariableDatatables as $key => $customVariableTableForDate) {
-                $dataTableForDate = isset($dataTables[$key]) ? $dataTables[$key] : new DataTable();
-
-                // we do not enter the IF
-                // if case idSite=1,3 AND period=day&date=datefrom,dateto,
-                if (isset($customVariableTableForDate->metadata['period'])) {
-                    $dateRewrite = $customVariableTableForDate->metadata['period']->getDateStart()->toString();
-                    $row = $customVariableTableForDate->getRowFromLabel($customVarNameToLookFor);
-                    if ($row) {
-                        $idSubtable = $row->getIdSubDataTable();
-                        $this->enrichItemsDataTableWithItemsViewMetrics($dataTableForDate, $idSite, $period, $dateRewrite, $idSubtable);
-                    }
-                    $dataTable->addTable($dataTableForDate, $key);
-                }
-                $this->renameNotDefinedRow($dataTableForDate, $notDefinedStringPretty);
-            }
-        } elseif ($customVariables instanceof DataTable) {
-            $row = $customVariables->getRowFromLabel($customVarNameToLookFor);
-            if ($row) {
-                $idSubtable = $row->getIdSubDataTable();
-                $this->enrichItemsDataTableWithItemsViewMetrics($dataTable, $idSite, $period, $date, $idSubtable);
-            }
-            $this->renameNotDefinedRow($dataTable, $notDefinedStringPretty);
-        }
 
         // Product conversion rate = orders / visits
         $dataTable->queueFilter('ColumnCallbackAddColumnPercentage', array('conversion_rate', $ordersColumn, 'nb_visits', GoalManager::REVENUE_PRECISION));
@@ -296,7 +244,7 @@ class API
     protected function renameNotDefinedRow($dataTable, $notDefinedStringPretty)
     {
         if ($dataTable instanceof DataTable\Map) {
-            foreach ($dataTable->getArray() as $table) {
+            foreach ($dataTable->getDataTables() as $table) {
                 $this->renameNotDefinedRow($table, $notDefinedStringPretty);
             }
             return;
@@ -307,9 +255,9 @@ class API
         }
     }
 
-    protected function enrichItemsDataTableWithItemsViewMetrics($dataTable, $idSite, $period, $date, $idSubtable)
+    protected function enrichItemsDataTableWithItemsViewMetrics($dataTable, $idSite, $period, $date, $segment, $idSubtable)
     {
-        $ecommerceViews = \Piwik\Plugins\CustomVariables\API::getInstance()->getCustomVariablesValuesFromNameId($idSite, $period, $date, $idSubtable, $segment = false, $_leavePriceViewedColumn = true);
+        $ecommerceViews = \Piwik\Plugins\CustomVariables\API::getInstance()->getCustomVariablesValuesFromNameId($idSite, $period, $date, $idSubtable, $segment, $_leavePriceViewedColumn = true);
 
         // For Product names and SKU reports, and for Category report
         // Use the Price (tracked on page views)
@@ -323,7 +271,7 @@ class API
             if (empty($price)) {
                 // If a price was tracked on the product page
                 if ($rowView->getColumn(Metrics::INDEX_ECOMMERCE_ITEM_PRICE_VIEWED)) {
-                    $rowView->renameColumn(Metrics::INDEX_ECOMMERCE_ITEM_PRICE_VIEWED, 'avg_price');
+                    $rowView->renameColumn(Metrics::INDEX_ECOMMERCE_ITEM_PRICE_VIEWED, self::AVG_PRICE_VIEWED);
                 }
             }
             $rowView->deleteColumn(Metrics::INDEX_ECOMMERCE_ITEM_PRICE_VIEWED);
@@ -332,19 +280,19 @@ class API
         $dataTable->addDataTable($ecommerceViews);
     }
 
-    public function getItemsSku($idSite, $period, $date, $abandonedCarts = false)
+    public function getItemsSku($idSite, $period, $date, $abandonedCarts = false, $segment = false)
     {
-        return $this->getItems('Goals_ItemsSku', $idSite, $period, $date, $abandonedCarts);
+        return $this->getItems('Goals_ItemsSku', $idSite, $period, $date, $abandonedCarts, $segment);
     }
 
-    public function getItemsName($idSite, $period, $date, $abandonedCarts = false)
+    public function getItemsName($idSite, $period, $date, $abandonedCarts = false, $segment = false)
     {
-        return $this->getItems('Goals_ItemsName', $idSite, $period, $date, $abandonedCarts);
+        return $this->getItems('Goals_ItemsName', $idSite, $period, $date, $abandonedCarts, $segment);
     }
 
-    public function getItemsCategory($idSite, $period, $date, $abandonedCarts = false)
+    public function getItemsCategory($idSite, $period, $date, $abandonedCarts = false, $segment = false)
     {
-        return $this->getItems('Goals_ItemsCategory', $idSite, $period, $date, $abandonedCarts);
+        return $this->getItems('Goals_ItemsCategory', $idSite, $period, $date, $abandonedCarts, $segment);
     }
 
     /**
@@ -414,7 +362,7 @@ class API
         }
         if ($idGoal == Piwik::LABEL_ID_GOAL_IS_ECOMMERCE_ORDER) {
             if ($dataTable instanceof DataTable\Map) {
-                foreach ($dataTable->getArray() as $row) {
+                foreach ($dataTable->getDataTables() as $row) {
                     $this->enrichTable($row);
                 }
             } else {
@@ -528,7 +476,7 @@ class API
 
         $dataTable->queueFilter('Sort', array('label', 'asc', true));
         $dataTable->queueFilter(
-            'BeautifyRangeLabels', array(Piwik_Translate('General_OneDay'), Piwik_Translate('General_NDays')));
+            'BeautifyRangeLabels', array(Piwik::translate('General_OneDay'), Piwik::translate('General_NDays')));
 
         return $dataTable;
     }
@@ -552,8 +500,68 @@ class API
 
         $dataTable->queueFilter('Sort', array('label', 'asc', true));
         $dataTable->queueFilter(
-            'BeautifyRangeLabels', array(Piwik_Translate('General_OneVisit'), Piwik_Translate('General_NVisits')));
+            'BeautifyRangeLabels', array(Piwik::translate('General_OneVisit'), Piwik::translate('General_NVisits')));
 
         return $dataTable;
+    }
+
+    /**
+     * Enhances the dataTable with Items attributes found in the Custom Variables report.
+     *
+     * @param $dataTable
+     * @param $recordName
+     * @param $idSite
+     * @param $period
+     * @param $date
+     * @param $segment
+     */
+    protected function enrichItemsTableWithViewMetrics($dataTable, $recordName, $idSite, $period, $date, $segment)
+    {
+        // Enrich the datatable with Product/Categories views, and conversion rates
+        $customVariables = \Piwik\Plugins\CustomVariables\API::getInstance()->getCustomVariables($idSite, $period, $date, $segment, $expanded = false,
+            $_leavePiwikCoreVariables = true);
+        $mapping = array(
+            'Goals_ItemsSku'      => '_pks',
+            'Goals_ItemsName'     => '_pkn',
+            'Goals_ItemsCategory' => '_pkc',
+        );
+        $reportToNotDefinedString = array(
+            'Goals_ItemsSku'      => Piwik::translate('General_NotDefined', Piwik::translate('Goals_ProductSKU')), // Note: this should never happen
+            'Goals_ItemsName'     => Piwik::translate('General_NotDefined', Piwik::translate('Goals_ProductName')),
+            'Goals_ItemsCategory' => Piwik::translate('General_NotDefined', Piwik::translate('Goals_ProductCategory'))
+        );
+        $notDefinedStringPretty = $reportToNotDefinedString[$recordName];
+        $customVarNameToLookFor = $mapping[$recordName];
+
+        // Handle case where date=last30&period=day
+        if ($customVariables instanceof DataTable\Map) {
+            $customVariableDatatables = $customVariables->getDataTables();
+            $dataTables = $dataTable->getDataTables();
+            foreach ($customVariableDatatables as $key => $customVariableTableForDate) {
+                $dataTableForDate = isset($dataTables[$key]) ? $dataTables[$key] : new DataTable();
+
+                // we do not enter the IF
+                // if case idSite=1,3 AND period=day&date=datefrom,dateto,
+                if ($customVariableTableForDate instanceof DataTable
+                    && $customVariableTableForDate->getMetadata(Archive\DataTableFactory::TABLE_METADATA_PERIOD_INDEX)
+                ) {
+                    $dateRewrite = $customVariableTableForDate->getMetadata(Archive\DataTableFactory::TABLE_METADATA_PERIOD_INDEX)->getDateStart()->toString();
+                    $row = $customVariableTableForDate->getRowFromLabel($customVarNameToLookFor);
+                    if ($row) {
+                        $idSubtable = $row->getIdSubDataTable();
+                        $this->enrichItemsDataTableWithItemsViewMetrics($dataTableForDate, $idSite, $period, $dateRewrite, $segment, $idSubtable);
+                    }
+                    $dataTable->addTable($dataTableForDate, $key);
+                }
+                $this->renameNotDefinedRow($dataTableForDate, $notDefinedStringPretty);
+            }
+        } elseif ($customVariables instanceof DataTable) {
+            $row = $customVariables->getRowFromLabel($customVarNameToLookFor);
+            if ($row) {
+                $idSubtable = $row->getIdSubDataTable();
+                $this->enrichItemsDataTableWithItemsViewMetrics($dataTable, $idSite, $period, $date, $segment, $idSubtable);
+            }
+            $this->renameNotDefinedRow($dataTable, $notDefinedStringPretty);
+        }
     }
 }

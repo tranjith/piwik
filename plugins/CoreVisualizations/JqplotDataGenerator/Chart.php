@@ -5,8 +5,6 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik_Plugins
- * @package CoreVisualizations
  */
 namespace Piwik\Plugins\CoreVisualizations\JqplotDataGenerator;
 
@@ -14,9 +12,9 @@ use Piwik\Common;
 use Piwik\ProxyHttp;
 
 /**
- * Generates the data in the Open Flash Chart format, from the given data.
+ *
  */
-class Chart
+class Chart 
 {
     // the data kept here conforms to the jqplot data layout
     // @see http://www.jqplot.com/docs/files/jqPlotOptions-txt.html
@@ -25,17 +23,17 @@ class Chart
     protected $axes = array();
 
     // temporary
-    public $dataTable;
     public $properties;
 
     public function setAxisXLabels($xLabels)
     {
-        $xSteps = $this->properties['visualization_properties']->x_axis_step_size;
-        $showAllTicks = $this->properties['visualization_properties']->show_all_ticks;
+        $xSteps = $this->properties['x_axis_step_size'];
+        $showAllTicks = $this->properties['show_all_ticks'];
 
         $this->axes['xaxis']['labels'] = array_values($xLabels);
 
         $ticks = array_values($xLabels);
+
         if (!$showAllTicks) {
             // unset labels so there are $xSteps number of blank ticks between labels
             foreach ($ticks as $i => &$label) {
@@ -56,14 +54,13 @@ class Chart
     {
         foreach ($values as $label => &$data) {
             $this->series[] = array(
-                // unsanitize here is safe since data gets outputted as JSON, not HTML
-                // NOTE: this is a quick fix for a double-encode issue. if this file is refactored,
-                // this fix can probably be removed (or at least made more understandable).
-                'label'         => Common::unsanitizeInputValue($label),
+                'label'         => $label,
                 'internalLabel' => $label
             );
 
-            array_walk($data, function(&$v) { $v = (float)$v; });
+            array_walk($data, function (&$v) {
+                $v = (float)$v;
+            });
             $this->data[] = & $data;
         }
     }
@@ -110,11 +107,11 @@ class Chart
 
         // See http://www.jqplot.com/docs/files/jqPlotOptions-txt.html
         $data = array(
-            'params'       => array(
+            'params' => array(
                 'axes'   => &$this->axes,
                 'series' => &$this->series
             ),
-            'data'         => &$this->data
+            'data'   => &$this->data
         );
 
         return $data;

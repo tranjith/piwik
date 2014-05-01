@@ -5,14 +5,13 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik_Plugins
- * @package Annotations
  */
 namespace Piwik\Plugins\Annotations;
 
 use Exception;
-use Piwik\Piwik;
 use Piwik\Date;
+use Piwik\Option;
+use Piwik\Piwik;
 use Piwik\Site;
 
 /**
@@ -30,7 +29,6 @@ use Piwik\Site;
  * an annotation for the same site, it's possible one of their changes will
  * never get made (as it will be overwritten by the other's).
  *
- * @package Annotations
  */
 class AnnotationList
 {
@@ -107,7 +105,7 @@ class AnnotationList
         $this->checkIdSiteIsLoaded($idSite);
 
         $optionName = self::getAnnotationCollectionOptionName($idSite);
-        Piwik_SetOption($optionName, serialize($this->annotations[$idSite]));
+        Option::set($optionName, serialize($this->annotations[$idSite]));
     }
 
     /**
@@ -161,6 +159,22 @@ class AnnotationList
         $this->checkNoteExists($idSite, $idNote);
 
         unset($this->annotations[$idSite][$idNote]);
+    }
+
+    /**
+     * Removes all notes for a single site.
+     *
+     * Note: This method does not perist the change in the DB. The save method must
+     * be called for that.
+     *
+     * @param int $idSite The ID of the site to get an annotation for.
+     * @throws Exception if $idSite is not an ID that was supplied upon construction.
+     */
+    public function removeAll($idSite)
+    {
+        $this->checkIdSiteIsLoaded($idSite);
+
+        $this->annotations[$idSite] = array();
     }
 
     /**
@@ -312,10 +326,14 @@ class AnnotationList
         $result = array();
         foreach ($this->idSites as $id) {
             $optionName = self::getAnnotationCollectionOptionName($id);
-            $serialized = Piwik_GetOption($optionName);
+            $serialized = Option::get($optionName);
 
             if ($serialized !== false) {
-                $result[$id] = unserialize($serialized);
+                $result[$id] = @unserialize($serialized);
+                if(empty($result[$id])) {
+                    // in case unserialize failed
+                    $result[$id] = array();
+                }
             } else {
                 $result[$id] = array();
             }
@@ -421,7 +439,7 @@ class AnnotationList
     public static function canUserAddNotesFor($idSite)
     {
         return Piwik::isUserHasViewAccess($idSite)
-            && !Piwik::isUserIsAnonymous($idSite);
+        && !Piwik::isUserIsAnonymous($idSite);
     }
 
     /**

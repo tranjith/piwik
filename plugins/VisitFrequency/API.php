@@ -5,41 +5,34 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik_Plugins
- * @package VisitFrequency
  */
 namespace Piwik\Plugins\VisitFrequency;
 
 use Piwik\API\Request;
+use Piwik\DataTable;
 use Piwik\Piwik;
+use Piwik\Common;
+use Piwik\Archive;
 use Piwik\SegmentExpression;
+use Piwik\SettingsPiwik;
 use Piwik\Plugins\VisitsSummary\API as APIVisitsSummary;
 
 /**
  * VisitFrequency API lets you access a list of metrics related to Returning Visitors.
- * @package VisitFrequency
+ * @method static \Piwik\Plugins\VisitFrequency\API getInstance()
  */
-class API
+class API extends \Piwik\Plugin\API
 {
-    const RETURNING_VISITOR_SEGMENT = "visitorType==returning";
+    // visitorType==returning,visitorType==returningCustomer
+    const RETURNING_VISITOR_SEGMENT = "visitorType%3D%3Dreturning%2CvisitorType%3D%3DreturningCustomer";
     const COLUMN_SUFFIX = "_returning";
 
-    static private $instance = null;
-
-    static public function getInstance()
-    {
-        if (self::$instance == null) {
-            self::$instance = new self;
-        }
-        return self::$instance;
-    }
-
     /**
-     * @param int         $idSite
-     * @param string      $period
-     * @param string      $date
+     * @param int $idSite
+     * @param string $period
+     * @param string $date
      * @param bool|string $segment
-     * @param bool|array  $columns
+     * @param bool|array $columns
      * @return mixed
      */
     public function get($idSite, $period, $date, $segment = false, $columns = false)
@@ -66,7 +59,7 @@ class API
         if (empty($segment)) {
             $segment = '';
         } else {
-            $segment .= SegmentExpression::AND_DELIMITER;
+            $segment .= urlencode(SegmentExpression::AND_DELIMITER);
         }
         $segment .= self::RETURNING_VISITOR_SEGMENT;
         return $segment;

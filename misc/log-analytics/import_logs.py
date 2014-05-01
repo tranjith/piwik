@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# vim: et sw=4 ts=4:
 # -*- coding: utf-8 -*-
 #
 # Piwik - Open source web analytics
@@ -7,7 +8,10 @@
 # @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
 # @version $Id$
 #
-# For more info see: http://piwik.org/log-analytics/
+# For more info see: http://piwik.org/log-analytics/ and http://piwik.org/docs/log-analytics-tool-how-to/
+#
+# Requires Python 2.6 or greater.
+#
 
 import base64
 import bz2
@@ -31,6 +35,7 @@ import time
 import urllib
 import urllib2
 import urlparse
+import subprocess
 
 try:
     import json
@@ -57,7 +62,8 @@ DOWNLOAD_EXTENSIONS = (
     '7z aac arc arj asf asx avi bin csv deb dmg doc exe flv gz gzip hqx '
     'jar mpg mp2 mp3 mp4 mpeg mov movie msi msp odb odf odg odp '
     'ods odt ogg ogv pdf phps ppt qt qtm ra ram rar rpm sea sit tar tbz '
-    'bz2 tbz tgz torrent txt wav wma wmv wpd xls xml z zip'
+    'bz2 tbz tgz torrent txt wav wma wmv wpd xls xml xsd z zip '
+    'azw3 epub mobi'
 ).split()
 
 
@@ -65,6 +71,7 @@ DOWNLOAD_EXTENSIONS = (
 EXCLUDED_USER_AGENTS = (
     'adsbot-google',
     'ask jeeves',
+    'baidubot',
     'bot-',
     'bot/',
     'ccooter/',
@@ -104,13 +111,13 @@ PIWIK_EXPECTED_IMAGE = base64.b64decode(
 ## Formats.
 ##
 
-class RegexFormat(object):
+class BaseFormatException(Exception): pass
 
-    def __init__(self, name, regex, date_format='%d/%b/%Y:%H:%M:%S'):
+class BaseFormat(object):
+    def __init__(self, name):
         self.name = name
-        if regex is not None:
-            self.regex = re.compile(regex)
-        self.date_format = date_format
+        self.regex = None
+        self.date_format = '%d/%b/%Y:%H:%M:%S'
 
     def check_format(self, file):
         line = file.readline()
@@ -118,7 +125,77 @@ class RegexFormat(object):
         return self.check_format_line(line)
 
     def check_format_line(self, line):
-        return re.match(self.regex, line)
+        return False
+
+
+class JsonFormat(BaseFormat):
+    def __init__(self, name):
+        super(JsonFormat, self).__init__(name)
+        self.json = None
+        self.date_format = '%Y-%m-%dT%H:%M:%S'
+    
+    def check_format_line(self, line):
+        try:
+            self.json = json.loads(line)
+            return True
+        except:
+            return False
+
+    def match(self, line):
+        try:
+            self.json = json.loads(line)
+            return self
+        except:
+            self.json = None
+            return None
+
+    def get(self, key):
+        # Some ugly patchs ...
+        if key == 'generation_time_milli':
+            self.json[key] =  int(self.json[key] * 1000)
+        # Patch date format ISO 8601 
+        elif key == 'date':
+            tz = self.json[key][19:]
+            self.json['timezone'] = tz.replace(':', '')
+            self.json[key] = self.json[key][:19]
+
+        try:
+            return self.json[key]
+        except KeyError:
+            raise BaseFormatException()
+    
+    def get_all(self,):
+        return self.json
+
+
+
+class RegexFormat(BaseFormat):
+
+    def __init__(self, name, regex, date_format=None):
+        super(RegexFormat, self).__init__(name)
+        if regex is not None:
+            self.regex = re.compile(regex)
+        if date_format is not None:
+            self.date_format = date_format
+        self.matched = None
+
+    def check_format_line(self, line):
+        return self.match(line)
+
+    def match(self,line):
+        self.matched = self.regex.match(line)
+        return self.matched
+
+    def get(self, key):
+        try:
+            return self.matched.group(key)
+        except IndexError:
+            raise BaseFormatException()
+
+    def get_all(self,):
+        return self.matched.groupdict()
+            
+
 
 
 class IisFormat(RegexFormat):
@@ -191,6 +268,7 @@ FORMATS = {
     'iis': IisFormat(),
     's3': RegexFormat('s3', _S3_LOG_FORMAT),
     'icecast2': RegexFormat('icecast2', _ICECAST2_LOG_FORMAT),
+    'nginx_json': JsonFormat('nginx_json'),
 }
 
 
@@ -306,6 +384,14 @@ class Configuration(object):
             help="Each line from this file is a path to exclude"
         )
         option_parser.add_option(
+            '--include-path', dest='included_paths', action='append', default=[],
+            help="Paths to include. Can be specified multiple times. If not specified, all paths are included."
+        )
+        option_parser.add_option(
+            '--include-path-from', dest='include_path_from',
+            help="Each line from this file is a path to include"
+        )
+        option_parser.add_option(
             '--useragent-exclude', dest='excluded_useragents',
             action='append', default=[],
             help="User agents to exclude (in addition to the standard excluded "
@@ -379,7 +465,7 @@ class Configuration(object):
         option_parser.add_option(
             '--replay-tracking', dest='replay_tracking',
             action='store_true', default=False,
-            help="Replay piwik.php requests found in custom logs (only piwik.php requests expected)"
+            help="Replay piwik.php requests found in custom logs (only piwik.php requests expected). \nSee http://piwik.org/faq/how-to/faq_17033/"
         )
         option_parser.add_option(
             '--output', dest='output',
@@ -407,6 +493,10 @@ class Configuration(object):
             '--force-lowercase-path', dest='force_lowercase_path', default=False, action='store_true',
             help="Make URL path lowercase so paths with the same letters but different cases are "
                  "treated the same."
+        )
+        option_parser.add_option(
+            '--enable-testmode', dest='enable_testmode', default=False, action='store_true',
+            help="If set, it will try to get the token_auth from the piwik_tests directory"
         )
         return option_parser
 
@@ -437,6 +527,12 @@ class Configuration(object):
             self.options.excluded_paths.extend(path for path in paths if len(path) > 0)
         if self.options.excluded_paths:
             logging.debug('Excluded paths: %s', ' '.join(self.options.excluded_paths))
+
+        if self.options.include_path_from:
+            paths = [path.strip() for path in open(self.options.include_path_from).readlines()]
+            self.options.included_paths.extend(path for path in paths if len(path) > 0)
+        if self.options.included_paths:
+            logging.debug('Included paths: %s', ' '.join(self.options.included_paths))
 
         if self.options.hostnames:
             logging.debug('Accepted hostnames: %s', ', '.join(self.options.hostnames))
@@ -485,6 +581,27 @@ class Configuration(object):
         if self.options.login and self.options.password:
             piwik_login = self.options.login
             piwik_password = hashlib.md5(self.options.password).hexdigest()
+
+            logging.debug('Using credentials: (login = %s, password = %s)', piwik_login, piwik_password)
+            try:
+                api_result = piwik.call_api('UsersManager.getTokenAuth',
+                    userLogin=piwik_login,
+                    md5Password=piwik_password,
+                    _token_auth='',
+                    _url=self.options.piwik_url,
+                )
+            except urllib2.URLError, e:
+                fatal_error('error when fetching token_auth from the API: %s' % e)
+
+            try:
+                return api_result['value']
+            except KeyError:
+                # Happens when the credentials are invalid.
+                message = api_result.get('message')
+                fatal_error(
+                    'error fetching authentication token token_auth%s' % (
+                    ': %s' % message if message else '')
+                )
         else:
             # Fallback to the given (or default) configuration file, then
             # get the token from the API.
@@ -499,29 +616,43 @@ class Configuration(object):
                     "couldn't open the configuration file, "
                     "required to get the authentication token"
                 )
-            piwik_login = config_file.get('superuser', 'login').strip('"')
-            piwik_password = config_file.get('superuser', 'password').strip('"')
 
-        logging.debug('Using credentials: (login = %s, password = %s)', piwik_login, piwik_password)
-        try:
-            api_result = piwik.call_api('UsersManager.getTokenAuth',
-                userLogin=piwik_login,
-                md5Password=piwik_password,
-                _token_auth='',
-                _url=self.options.piwik_url,
+            updatetokenfile = os.path.abspath(
+                os.path.join(os.path.dirname(__file__),
+                    '../../misc/cron/updatetoken.php'),
             )
-        except urllib2.URLError, e:
-            fatal_error('error when fetching token_auth from the API: %s' % e)
 
-        try:
-            return api_result['value']
-        except KeyError:
-            # Happens when the credentials are invalid.
-            message = api_result.get('message')
-            fatal_error(
-                'error fetching authentication token token_auth%s' % (
-                ': %s' % message if message else '')
-            )
+            phpBinary = 'php'
+
+            is_windows = sys.platform.startswith('win')
+            if is_windows:
+                try:
+                    processWin = subprocess.Popen('where php.exe', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                    [stdout, stderr] = processWin.communicate()
+                    if processWin.returncode == 0:
+                        phpBinary = stdout.strip()
+                    else:
+                        fatal_error("We couldn't detect PHP. It might help to add your php.exe to the path or alternatively run the importer using the --login and --password option")
+                except:
+                    fatal_error("We couldn't detect PHP. You can run the importer using the --login and --password option to fix this issue")
+
+
+            command = [phpBinary, updatetokenfile]
+            if self.options.enable_testmode:
+                command.append('--testmode')
+
+            command = subprocess.list2cmdline(command)
+            process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+            [stdout, stderr] = process.communicate()
+            if process.returncode != 0:
+                fatal_error("`" + command + "` failed with error: " + stderr + ".\nReponse code was: " + str(process.returncode) + ". You can alternatively run the importer using the --login and --password option")
+
+
+            filename = stdout
+            credentials = open(filename, 'r').readline()
+            credentials = credentials.split('\t')
+            return credentials[1]
+
 
     def get_resolver(self):
         if self.options.site_id:
@@ -808,7 +939,7 @@ class Piwik(object):
         try:
             return json.loads(res)
         except ValueError:
-            truncate_after = 300
+            truncate_after = 4000
             raise urllib2.URLError('Piwik returned an invalid response: ' + res[:truncate_after])
 
 
@@ -825,7 +956,7 @@ class Piwik(object):
                     if on_failure is not None:
                         error_message = on_failure(response, kwargs.get('data'))
                     else:
-                        truncate_after = 300
+                        truncate_after = 4000
                         truncated_response = (response[:truncate_after] + '..') if len(response) > truncate_after else response
                         error_message = "didn't receive the expected response. Response was %s " % truncated_response
 
@@ -1155,11 +1286,14 @@ class Recorder(object):
 
         if hit.is_download:
             args['download'] = args['url']
-        if hit.is_robot:
-            args['_cvar'] = '{"1":["Bot","%s"]}' % hit.user_agent
-        elif config.options.enable_bots:
-            args['_cvar'] = '{"1":["Not-Bot","%s"]}' % hit.user_agent
+
+        if config.options.enable_bots:
             args['bots'] = '1'
+            if hit.is_robot:
+                args['_cvar'] = '{"1":["Bot","%s"]}' % hit.user_agent
+            else:
+                args['_cvar'] = '{"1":["Not-Bot","%s"]}' % hit.user_agent
+
         if hit.is_error or hit.is_redirect:
             args['cvar'] = '{"1":["HTTP-code","%s"]}' % hit.status
             args['action_name'] = '%s/URL = %s%s' % (
@@ -1203,7 +1337,7 @@ class Recorder(object):
             return response
 
         # remove the successfully tracked hits from payload
-        succeeded = response['tracked']
+        tracked = response['tracked']
         data['requests'] = data['requests'][tracked:]
 
         return response['message']
@@ -1225,7 +1359,7 @@ class Recorder(object):
                 idSites=','.join(str(site_id) for site_id in stats.piwik_sites),
             )
             print('To re-process these reports with your new update data, execute the '
-                  'piwik/misc/cron/archive.php script, or see: http://piwik.org/setup-auto-archiving/ '
+                  '`piwik/console core:archive` script, or see: http://piwik.org/setup-auto-archiving/ '
                   'for more info.')
 
 
@@ -1327,7 +1461,47 @@ class Parser(object):
         for excluded_path in config.options.excluded_paths:
             if fnmatch.fnmatch(hit.path, excluded_path):
                 return False
+        # By default, all paths are included.
+        if config.options.included_paths:
+           for included_path in config.options.included_paths:
+               if fnmatch.fnmatch(hit.path, included_path):
+                   return True
+           return False
         return True
+
+    @staticmethod
+    def check_format(lineOrFile):
+        format = False
+        format_groups = 0
+        for name, candidate_format in FORMATS.iteritems():
+            logging.debug("Check format %s", name)
+
+            match = None
+            try:
+                if isinstance(lineOrFile, basestring):
+                    match = candidate_format.check_format_line(lineOrFile)
+                else:
+                    match = candidate_format.check_format(lineOrFile)
+            except:
+                pass
+
+            if match:
+                logging.debug('Format %s matches', name)
+
+                # compare format groups if this *BaseFormat has groups() method
+                try:
+                    # if there's more info in this match, use this format
+                    match_groups = len(match.groups())
+                    if format_groups < match_groups:
+                        format = candidate_format
+                        format_groups = match_groups
+                except AttributeError: 
+                    format = candidate_format
+
+            else:
+                logging.debug('Format %s does not match', name)
+        
+        return format
 
     @staticmethod
     def detect_format(file):
@@ -1336,24 +1510,29 @@ class Parser(object):
         """
         logging.debug('Detecting the log format')
 
-        format = None
-        format_groups = 0
-        for name, candidate_format in FORMATS.iteritems():
-            match = candidate_format.check_format(file)
-            if match:
-                logging.debug('Format %s matches', name)
+        format = False
 
-                # if there's more info in this match, use this format
-                match_groups = len(match.groups())
-                if format_groups < match_groups:
-                    format = candidate_format
-                    format_groups = match_groups
-            else:
-                logging.debug('Format %s does not match', name)
+        # check the format using the file (for formats like the IIS one)
+        format = Parser.check_format(file)
 
-        if format:
-            logging.debug('Format %s is the best match', format.name)
+        # check the format using the first N lines (to avoid irregular ones)
+        lineno = 0
+        limit = 100000
+        while not format and lineno < limit:
+            line = file.readline()
+            lineno = lineno + 1
 
+            logging.debug("Detecting format against line %i" % lineno)
+            format = Parser.check_format(line)
+
+        file.seek(0)
+
+        if not format:
+            fatal_error("cannot automatically determine the log format using the first %d lines of the log file. " % limit +
+                        "\Maybe try specifying the format with the --log-format-name command line argument." )
+            return
+
+        logging.debug('Format %s is the best match', format.name)
         return format
 
     def parse(self, filename):
@@ -1415,7 +1594,7 @@ class Parser(object):
             if stats.count_lines_parsed.value <= config.options.skip:
                 continue
 
-            match = format.regex.match(line)
+            match = format.match(line)
             if not match:
                 invalid_line(line, 'line did not match')
                 continue
@@ -1423,8 +1602,8 @@ class Parser(object):
             hit = Hit(
                 filename=filename,
                 lineno=lineno,
-                status=match.group('status'),
-                full_path=match.group('path'),
+                status=format.get('status'),
+                full_path=format.get('path'),
                 is_download=False,
                 is_robot=False,
                 is_error=False,
@@ -1433,44 +1612,44 @@ class Parser(object):
             )
 
             try:
-                hit.query_string = match.group('query_string')
+                hit.query_string = format.get('query_string')
                 hit.path = hit.full_path
-            except IndexError:
+            except BaseFormatException:
                 hit.path, _, hit.query_string = hit.full_path.partition(config.options.query_string_delimiter)
 
             try:
-                hit.referrer = match.group('referrer')
-            except IndexError:
+                hit.referrer = format.get('referrer')
+            except BaseFormatException:
                 hit.referrer = ''
             if hit.referrer == '-':
                 hit.referrer = ''
 
             try:
-                hit.user_agent = match.group('user_agent')
-            except IndexError:
+                hit.user_agent = format.get('user_agent')
+            except BaseFormatException:
                 hit.user_agent = ''
 
-            hit.ip = match.group('ip')
+            hit.ip = format.get('ip')
             try:
-                hit.length = int(match.group('length'))
-            except (ValueError, IndexError):
+                hit.length = int(format.get('length'))
+            except (ValueError, BaseFormatException):
                 # Some lines or formats don't have a length (e.g. 304 redirects, IIS logs)
                 hit.length = 0
 
             try:
-                hit.generation_time_milli = int(match.group('generation_time_milli'))
-            except IndexError:
+                hit.generation_time_milli = int(format.get('generation_time_milli'))
+            except BaseFormatException:
                 try:
-                    hit.generation_time_milli = int(match.group('generation_time_micro')) / 1000
-                except IndexError:
+                    hit.generation_time_milli = int(format.get('generation_time_micro')) / 1000
+                except BaseFormatException:
                     hit.generation_time_milli = 0
 
             if config.options.log_hostname:
                 hit.host = config.options.log_hostname
             else:
                 try:
-                    hit.host = match.group('host').lower().strip('.')
-                except IndexError:
+                    hit.host = format.get('host').lower().strip('.')
+                except BaseFormatException:
                     # Some formats have no host.
                     pass
 
@@ -1481,7 +1660,7 @@ class Parser(object):
             # Parse date.
             # We parse it after calling check_methods as it's quite CPU hungry, and
             # we want to avoid that cost for excluded hits.
-            date_string = match.group('date')
+            date_string = format.get('date')
             try:
                 hit.date = datetime.datetime.strptime(date_string, format.date_format)
             except ValueError:
@@ -1490,8 +1669,8 @@ class Parser(object):
 
             # Parse timezone and substract its value from the date
             try:
-                timezone = float(match.group('timezone'))
-            except IndexError:
+                timezone = float(format.get('timezone'))
+            except BaseFormatException:
                 timezone = 0
             except ValueError:
                 invalid_line(line, 'invalid timezone')
@@ -1502,6 +1681,7 @@ class Parser(object):
             if config.options.replay_tracking:
                 # we need a query string and we only consider requests with piwik.php
                 if not hit.query_string or not hit.path.lower().endswith('piwik.php'):
+                    invalid_line(line, 'no query string, or ' + hit.path.lower() + ' does not end with piwik.php')
                     continue
 
                 query_arguments = urlparse.parse_qs(hit.query_string)

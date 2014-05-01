@@ -12,9 +12,6 @@
         "SubmenuPagesExit": "Útgangssíður",
         "SubmenuPageTitles": "Síðu titlar"
     },
-    "AnonymizeIP": {
-        "PluginDescription": "Hylja síðusta bæti gesta IP-tölu til samræðis við persónuverndarlaga þíns lands."
-    },
     "API": {
         "GenerateVisits": "Ef þú hefur ekki gögn dagsins í dag verður þú fyrst að búa til gögn með að nota %s íbótina. Virkjaðu %s íbótina og smelltu síðan á valmyndinni 'Gesta framleiðni' í Piwik umsjónarmanns svæðinu.",
         "KeepTokenSecret": "Þessi tókar auðkenning er eins leynd og þitt notendanafn og lykilorð %s deilið því ekki%s!",
@@ -213,7 +210,6 @@
         "Password": "Lykilorð",
         "Period": "Tímabil",
         "Piechart": "Kökurit",
-        "PiwikXIsAvailablePleaseNotifyPiwikAdmin": "%s er aðgengilegt. Vinsamlegast láttu umsjónaraðila vefsins vita.",
         "PiwikXIsAvailablePleaseUpdateNow": "Piwik %1$s er tiltækt. %2$sVinsamlegast uppfærðu núna!%3$s (sjá %4$schanges%5$s).",
         "PleaseSpecifyValue": "Vinsamlegast settu gildi í %s.",
         "PleaseUpdatePiwik": "Vinsamlegast uppfærðu Piwik",
@@ -261,7 +257,7 @@
         "TagCloud": "Klisjuský",
         "Today": "Í dag",
         "TranslatorEmail": "annaj@hi.is, ivarbj@hi.is, johannbg@gmail.com",
-        "TranslatorName": "Anna Jonna Ármannsdóttir <annaj@hi.is>Ívar Björn Hilmarsson <ivarbj@hi.is>Jóhann B. Guðmundsson <johannbg@gmail.com>",
+        "TranslatorName": "Anna Jonna Ármannsdóttir, Ívar Björn Hilmarsson, Jóhann B. Guðmundsson",
         "Unknown": "Óþekkt",
         "Username": "Notandanafn",
         "Value": "Gildi",
@@ -339,7 +335,6 @@
     },
     "Login": {
         "ContactAdmin": "Möguleg ástæða: þjónninn þinn gæti hafa slökkt á mail() fallinu. <br\/>Vinsamlegast hafðu samband við umsjónarmann Piwik þjónsins.",
-        "ExceptionInvalidSuperUserAuthenticationMethod": "Ekki er hægt að auðkenna yfirnotandan með '%s' aðferðinni.",
         "ExceptionPasswordMD5HashExpected": "Búist er við að lykilorðs færibreytan sé MD5 dulmál af lykilorðinu.",
         "InvalidUsernameEmail": "Ekki gilt notendanafn og\/eða tölvupóstfang",
         "LogIn": "Innskrá",
@@ -350,19 +345,22 @@
         "PasswordsDoNotMatch": "Lykilorðin stemma ekki.",
         "RememberMe": "Mundu mig"
     },
+    "PrivacyManager": {
+        "AnonymizeIpInlineHelp": "Hylja síðusta bæti gesta IP-tölu til samræðis við persónuverndarlaga þíns lands."
+    },
     "Provider": {
         "ColumnProvider": "Veitandi",
         "PluginDescription": "Skilar gögnum um þá sem veita gestum á vefinn.",
         "SubmenuLocationsProvider": "Staðsetningar & Veitandi",
         "WidgetProviders": "Veitendur"
     },
-    "Referers": {
+    "Referrers": {
         "Campaigns": "Herferðir",
         "ColumnCampaign": "Herferð",
         "ColumnSearchEngine": "Leitarvél",
         "ColumnWebsite": "Vefur",
         "ColumnWebsitePage": "Vefsíða",
-        "DetailsByRefererType": "Smáatriði eftir Tegund Sendanda",
+        "DetailsByReferrerType": "Smáatriði eftir Tegund Sendanda",
         "DirectEntry": "Beinar Innfærslur",
         "Distinct": "Mismundandi Sendendur eftir Tegund Sendanda",
         "DistinctCampaigns": "mismunandi herferðir",
@@ -371,7 +369,7 @@
         "DistinctWebsites": "mismunandi vefir",
         "Keywords": "Leitarorð",
         "PluginDescription": "Gefur skýrslu um sendendur: Leitarvélar, Leitarorð, Vefi, rekja herferð, bein innfærsla.",
-        "Referers": "Sendendur",
+        "Referrers": "Sendendur",
         "SearchEngines": "Leitarvélar",
         "SubmenuSearchEngines": "Leitarvélar & Leitarorð",
         "SubmenuWebsites": "Vefir",

@@ -5,20 +5,20 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Updates
  */
+
+namespace Piwik\Updates;
+
 use Piwik\Common;
 use Piwik\Filesystem;
 use Piwik\Updater;
 use Piwik\Updates;
 
 /**
- * @package Updates
  */
-class Piwik_Updates_0_2_10 extends Updates
+class Updates_0_2_10 extends Updates
 {
-    static function getSql($schema = 'Myisam')
+    static function getSql()
     {
         return array(
             'CREATE TABLE `' . Common::prefixTable('option') . '` (
@@ -26,7 +26,7 @@ class Piwik_Updates_0_2_10 extends Updates
 				option_name VARCHAR( 64 ) NOT NULL ,
 				option_value LONGTEXT NOT NULL ,
 				PRIMARY KEY ( idoption , option_name )
-			)'                                                                                                                                                             => false,
+			)'                                                                                                                                                       => false,
 
             // 0.1.7 [463]
             'ALTER IGNORE TABLE `' . Common::prefixTable('log_visit') . '`

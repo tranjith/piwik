@@ -7,7 +7,6 @@
  */
 use Piwik\Date;
 use Piwik\Plugins\Goals\API as APIGoals;
-use Piwik\Plugins\SitesManager\API as APISitesManager;
 
 /**
  * Reusable fixture. Tracks twelve thousand page views for 1000 sites on one day.
@@ -25,7 +24,7 @@ class Piwik_Test_Fixture_ThousandSitesTwelveVisitsEachOneDay
         // add one thousand sites
         $allIdSites = array();
         for ($i = 0; $i < 1000; ++$i) {
-            $allIdSites[] = Test_Piwik_BaseFixture::createWebsite($this->date, $ecommerce = 1, $siteName = "Site #$i");
+            $allIdSites[] = Fixture::createWebsite($this->date, $ecommerce = 1, $siteName = "Site #$i");
         }
 
         // add goals to 500 sites

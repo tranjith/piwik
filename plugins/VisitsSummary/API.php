@@ -5,8 +5,6 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik_Plugins
- * @package VisitsSummary
  */
 namespace Piwik\Plugins\VisitsSummary;
 
@@ -19,28 +17,15 @@ use Piwik\SettingsPiwik;
  * VisitsSummary API lets you access the core web analytics metrics (visits, unique visitors,
  * count of actions (page views & downloads & clicks on outlinks), time on site, bounces and converted visits.
  *
- * @package VisitsSummary
+ * @method static \Piwik\Plugins\VisitsSummary\API getInstance()
  */
-class API
+class API extends \Piwik\Plugin\API
 {
-    static private $instance = null;
-
-    /**
-     * @return \Piwik\Plugins\VisitsSummary\API
-     */
-    static public function getInstance()
-    {
-        if (self::$instance == null) {
-            self::$instance = new self;
-        }
-        return self::$instance;
-    }
-
     public function get($idSite, $period, $date, $segment = false, $columns = false)
     {
         Piwik::checkUserHasViewAccess($idSite);
         $archive = Archive::build($idSite, $period, $date, $segment);
-        
+
         // array values are comma separated
         $columns = Piwik::getArrayFromApiParameter($columns);
         $tempColumns = array();
@@ -86,7 +71,6 @@ class API
 
         // remove temp metrics that were used to compute processed metrics
         $dataTable->deleteColumns($tempColumns);
-
         return $dataTable;
     }
 

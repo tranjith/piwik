@@ -5,18 +5,13 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik_Plugins
- * @package ExampleRssWidget
  */
 
 namespace Piwik\Plugins\ExampleRssWidget;
-
-use Zend_Feed;
-use Zend_Feed_Exception;
+use Piwik\Http;
 
 /**
  *
- * @package ExampleRssWidget
  */
 class RssRenderer
 {
@@ -48,8 +43,9 @@ class RssRenderer
     public function get()
     {
         try {
-            $rss = Zend_Feed::import($this->url);
-        } catch (Zend_Feed_Exception $e) {
+            $content = Http::fetchRemoteFile($this->url);
+            $rss = simplexml_load_string($content);
+        } catch (\Exception $e) {
             echo "Error while importing feed: {$e->getMessage()}\n";
             exit;
         }
@@ -57,19 +53,23 @@ class RssRenderer
         $output = '<div style="padding:10px 15px;"><ul class="rss">';
         $i = 0;
 
-        foreach ($rss as $post) {
-            $title = $post->title();
-            $date = @strftime("%B %e, %Y", strtotime($post->pubDate()));
-            $link = $post->link();
+        $items = array();
+        if(!empty($rss->channel->item)) {
+            $items = $rss->channel->item;
+        }
+        foreach ($items as $post) {
+            $title = $post->title;
+            $date = @strftime("%B %e, %Y", strtotime($post->pubDate));
+            $link = $post->link;
 
             $output .= '<li><a class="rss-title" title="" target="_blank" href="?module=Proxy&action=redirect&url=' . $link . '">' . $title . '</a>' .
                 '<span class="rss-date">' . $date . '</span>';
             if ($this->showDescription) {
-                $output .= '<div class="rss-description">' . $post->description() . '</div>';
+                $output .= '<div class="rss-description">' . $post->description . '</div>';
             }
 
             if ($this->showContent) {
-                $output .= '<div class="rss-content">' . $post->content() . '</div>';
+                $output .= '<div class="rss-content">' . $post->content . '</div>';
             }
             $output .= '</li>';
 

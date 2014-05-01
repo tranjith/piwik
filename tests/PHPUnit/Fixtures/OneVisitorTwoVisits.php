@@ -12,9 +12,11 @@ use Piwik\Plugins\SitesManager\API as APISitesManager;
 /**
  * This fixture adds one website and tracks two visits by one visitor.
  */
-class Test_Piwik_Fixture_OneVisitorTwoVisits extends Test_Piwik_BaseFixture
+class Test_Piwik_Fixture_OneVisitorTwoVisits extends Fixture
 {
     public $idSite = 1;
+    public $idSiteEmptyBis;
+    public $idSiteEmptyTer;
     public $dateTime = '2010-03-06 11:22:33';
 
     public $useThirdPartyCookies = false;
@@ -34,7 +36,17 @@ class Test_Piwik_Fixture_OneVisitorTwoVisits extends Test_Piwik_BaseFixture
 
     private function setUpWebsitesAndGoals()
     {
-        self::createWebsite($this->dateTime);
+        if (!self::siteCreated($idSite = 1)) {
+            self::createWebsite($this->dateTime);
+        }
+
+        if (!self::siteCreated($idSite = 2)) {
+            $this->idSiteEmptyBis = $this->createWebsite($this->dateTime);
+        }
+
+        if (!self::siteCreated($idSite = 3)) {
+            $this->idSiteEmptyTer = $this->createWebsite($this->dateTime);
+        }
     }
 
     private function trackVisits()
@@ -54,7 +66,7 @@ class Test_Piwik_Fixture_OneVisitorTwoVisits extends Test_Piwik_BaseFixture
 
         $t->disableCookieSupport();
 
-        $t->setUrlReferrer('http://referer.com/page.htm?param=valuewith some spaces');
+        $t->setUrlReferrer('http://referrer.com/page.htm?param=valuewith some spaces');
 
         // testing URL excluded parameters
         $parameterToExclude = 'excluded_parameter';
@@ -104,7 +116,11 @@ class Test_Piwik_Fixture_OneVisitorTwoVisits extends Test_Piwik_BaseFixture
         self::checkResponse($t->doTrackAction('http://dev.piwik.org/svn', 'link'));
 
         // Create Goal 1: Triggered by JS, after 18 minutes
-        $idGoal = APIGoals::getInstance()->addGoal($idSite, 'triggered js', 'manually', '', '');
+        $idGoal = 1;
+        if (!self::goalExists($idSite, $idGoal)) {
+            $idGoal = APIGoals::getInstance()->addGoal($idSite, 'triggered js', 'manually', '', '');
+        }
+
         $t->setForceVisitDateTime(Date::factory($dateTime)->addHour(0.3)->getDatetime());
 
         // Change to Thai  browser to ensure the conversion is credited to FR instead (the visitor initial country)
@@ -141,7 +157,9 @@ class Test_Piwik_Fixture_OneVisitorTwoVisits extends Test_Piwik_BaseFixture
         // End of first visit: 24min
 
         // Create Goal 2: Matching on URL
-        APIGoals::getInstance()->addGoal($idSite, 'matching purchase.htm', 'url', '(.*)store\/purchase\.(.*)', 'regex', false, $revenue = 1);
+        if (!self::goalExists($idSite, $idGoal = 2)) {
+            APIGoals::getInstance()->addGoal($idSite, 'matching purchase.htm', 'url', '(.*)store\/purchase\.(.*)', 'regex', false, $revenue = 1);
+        }
 
         // -
         // Start of returning visit, 1 hour after first page view
@@ -151,7 +169,7 @@ class Test_Piwik_Fixture_OneVisitorTwoVisits extends Test_Piwik_BaseFixture
         // Temporary, until we implement 1st party cookies in PiwikTracker
         $t->DEBUG_APPEND_URL = '&_idvc=2';
 
-        // Goal Tracking URL matching, testing custom referer including keyword
+        // Goal Tracking URL matching, testing custom referrer including keyword
 		$t->setGenerationTime(134);
         self::checkResponse($t->doTrackPageView('Checkout/Purchasing...'));
         // -

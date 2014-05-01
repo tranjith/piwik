@@ -5,65 +5,49 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Piwik
  */
 
 namespace Piwik;
+
 use Piwik\Plugin;
-use Piwik\PluginsManager;
 
 /**
  * This class allows code to post events from anywhere in Piwik and for
  * plugins to associate callbacks to be executed when events are posted.
+ *
+ * @method static \Piwik\EventDispatcher getInstance()
  */
-class EventDispatcher
+class EventDispatcher extends Singleton
 {
     // implementation details for postEvent
     const EVENT_CALLBACK_GROUP_FIRST = 0;
     const EVENT_CALLBACK_GROUP_SECOND = 1;
     const EVENT_CALLBACK_GROUP_THIRD = 2;
-    
-    /**
-     * Singleton instance.
-     */
-    private static $instance = null;
-    
-    /**
-     * Returns the singleton EventDispatcher instance. Creates it if necessary.
-     */
-    public static function getInstance()
-    {
-        if (self::$instance === null) {
-            self::$instance = new EventDispatcher();
-        }
-        return self::$instance;
-    }
-    
+
     /**
      * Array of observers (callbacks attached to events) that are not methods
      * of plugin classes.
-     * 
+     *
      * @var array
      */
     private $extraObservers = array();
-    
+
     /**
      * Array storing information for all pending events. Each item in the array
      * will be an array w/ two elements:
-     * 
+     *
      * array(
      *     'Event.Name',                  // the event name
      *     array('event', 'parameters')   // the parameters to pass to event observers
      * )
-     * 
+     *
      * @var array
      */
     private $pendingEvents = array();
-    
+
     /**
      * Triggers an event, executing all callbacks associated with it.
-     * 
+     *
      * @param string $eventName The name of the event, ie, API.getReportMetadata.
      * @param array $params The parameters to pass to each callback when executing.
      * @param bool $pending Whether this event should be posted again for plugins
@@ -78,36 +62,36 @@ class EventDispatcher
         if ($pending) {
             $this->pendingEvents[] = array($eventName, $params);
         }
-        
+
         if (empty($plugins)) {
-            $plugins = PluginsManager::getInstance()->getLoadedPlugins();
+            $plugins = \Piwik\Plugin\Manager::getInstance()->getPluginsLoadedAndActivated();
         }
-        
+
         $callbacks = array();
-        
+
         // collect all callbacks to execute
         foreach ($plugins as $plugin) {
             if (is_string($plugin)) {
-                $plugin = PluginsManager::getInstance()->getLoadedPlugin($plugin);
+                $plugin = \Piwik\Plugin\Manager::getInstance()->getLoadedPlugin($plugin);
             }
-            
+
             $hooks = $plugin->getListHooksRegistered();
-            
+
             if (isset($hooks[$eventName])) {
                 list($pluginFunction, $callbackGroup) = $this->getCallbackFunctionAndGroupNumber($hooks[$eventName]);
-                
-                $callbacks[$callbackGroup][] = array($plugin, $pluginFunction);
+
+                $callbacks[$callbackGroup][] = is_string($pluginFunction) ? array($plugin, $pluginFunction) : $pluginFunction;
             }
         }
-        
+
         if (isset($this->extraObservers[$eventName])) {
             foreach ($this->extraObservers[$eventName] as $callbackInfo) {
                 list($callback, $callbackGroup) = $this->getCallbackFunctionAndGroupNumber($callbackInfo);
-                
+
                 $callbacks[$callbackGroup][] = $callback;
             }
         }
-        
+
         // execute callbacks in order
         foreach ($callbacks as $callbackGroup) {
             foreach ($callbackGroup as $callback) {
@@ -115,11 +99,11 @@ class EventDispatcher
             }
         }
     }
-    
+
     /**
      * Associates a callback that is not a plugin class method with an event
      * name.
-     * 
+     *
      * @param string $eventName
      * @param array|callable $callback This can be a normal PHP callback or an array
      *                        that looks like this:
@@ -140,20 +124,34 @@ class EventDispatcher
     {
         $this->extraObservers[$eventName][] = $callback;
     }
-    
+
     /**
-     * Removes all registered observers for an event name. Only used for testing.
-     * 
+     * Removes all registered extra observers for an event name. Only used for testing.
+     *
      * @param string $eventName
      */
     public function clearObservers($eventName)
     {
         $this->extraObservers[$eventName] = array();
     }
-    
+
+    /**
+     * Removes all registered extra observers. Only used for testing.
+     */
+    public function clearAllObservers()
+    {
+        foreach ($this->extraObservers as $eventName => $eventObservers) {
+            if (strpos($eventName, 'Log.format') === 0) {
+                continue;
+            }
+
+            $this->extraObservers[$eventName] = array();
+        }
+    }
+
     /**
      * Re-posts all pending events to the given plugin.
-     * 
+     *
      * @param Plugin $plugin
      */
     public function postPendingEventsTo($plugin)
@@ -163,7 +161,7 @@ class EventDispatcher
             $this->postEvent($eventName, $eventParams, $pending = false, array($plugin));
         }
     }
-    
+
     private function getCallbackFunctionAndGroupNumber($hookInfo)
     {
         if (is_array($hookInfo)
@@ -181,7 +179,7 @@ class EventDispatcher
             $pluginFunction = $hookInfo;
             $callbackGroup = self::EVENT_CALLBACK_GROUP_SECOND;
         }
-        
+
         return array($pluginFunction, $callbackGroup);
     }
 }

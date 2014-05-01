@@ -5,13 +5,12 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Piwik
  */
 
 namespace Piwik\Visualization;
 
 use Piwik\Common;
+use Piwik\Piwik;
 use Piwik\View\ViewInterface;
 use Sparkline_Line;
 
@@ -24,9 +23,6 @@ require_once PIWIK_INCLUDE_PATH . '/libs/sparkline/lib/Sparkline_Line.php';
 /**
  * Renders a sparkline image given a PHP data array.
  * Using the Sparkline PHP Graphing Library sparkline.org
- *
- * @package Piwik
- * @subpackage Piwik_Visualization
  */
 class Sparkline implements ViewInterface
 {
@@ -114,7 +110,7 @@ class Sparkline implements ViewInterface
 
         $min = $max = $last = null;
         $i = 0;
-        $toRemove = array('%', str_replace('%s', '', Piwik_Translate('General_Seconds')));
+        $toRemove = array('%', str_replace('%s', '', Piwik::translate('General_Seconds')));
         foreach ($this->values as $value) {
             // 50% and 50s should be plotted as 50
             $value = str_replace($toRemove, '', $value);
@@ -165,10 +161,10 @@ class Sparkline implements ViewInterface
         if (empty($colors)) { // quick fix so row evolution sparklines will have color in widgetize's iframes
             $colors = array(
                 'backgroundColor' => '#ffffff',
-                'lineColor' => '#162C4A',
-                'minPointColor' => '#ff7f7f',
-                'lastPointColor' => '#55AAFF',
-                'maxPointColor' => '#75BF7C'
+                'lineColor'       => '#162C4A',
+                'minPointColor'   => '#ff7f7f',
+                'lastPointColor'  => '#55AAFF',
+                'maxPointColor'   => '#75BF7C'
             );
         }
 

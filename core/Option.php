@@ -5,22 +5,114 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Piwik
  */
 namespace Piwik;
-use Piwik\Common;
 
 /**
- * Option provides a very simple mechanism to save/retrieve key-values pair
- * from the database (persistent key-value datastore).
+ * Convenient key-value storage for user specified options and temporary
+ * data that needs to be persisted beyond one request.
+ * 
+ * ### Examples
+ * 
+ * **Setting and getting options**
+ * 
+ *     $optionValue = Option::get('MyPlugin.MyOptionName');
+ *     if ($optionValue === false) {
+ *         // if not set, set it
+ *         Option::set('MyPlugin.MyOptionName', 'my option value');
+ *     }
+ * 
+ * **Storing user specific options**
+ * 
+ *     $userName = // ...
+ *     Option::set('MyPlugin.MyOptionName.' . $userName, 'my option value');
+ * 
+ * **Clearing user specific options**
+ * 
+ *     Option::deleteLike('MyPlugin.MyOptionName.%');
  *
- * This is useful to save Piwik-wide preferences, configuration values.
- *
- * @package Piwik
+ * @api
  */
 class Option
 {
+    /**
+     * Returns the option value for the requested option `$name`.
+     * 
+     * @param string $name The option name.
+     * @return string|false The value or `false`, if not found.
+     */
+    public static function get($name)
+    {
+        return self::getInstance()->getValue($name);
+    }
+
+    /**
+     * Returns option values for options whose names are like a given pattern.
+     *
+     * @param string $namePattern The pattern used in the SQL `LIKE` expression
+     *                            used to SELECT options.
+     * @return array Array mapping option names with option values.
+     */
+    public static function getLike($namePattern)
+    {
+        return self::getInstance()->getNameLike($namePattern);
+    }
+
+    /**
+     * Sets an option value by name.
+     *
+     * @param string $name The option name.
+     * @param string $value The value to set the option to.
+     * @param int $autoLoad If set to 1, this option value will be automatically loaded when Piwik is initialzed;
+     *                      should be set to 1 for options that will be used in every Piwik request.
+     */
+    public static function set($name, $value, $autoload = 0)
+    {
+        return self::getInstance()->setValue($name, $value, $autoload);
+    }
+
+    /**
+     * Deletes an option.
+     *
+     * @param string $name Option name to match exactly.
+     * @param string $value If supplied the option will be deleted only if its value matches this value.
+     */
+    public static function delete($name, $value = null)
+    {
+        return self::getInstance()->deleteValue($name, $value);
+    }
+
+    /**
+     * Deletes all options that match the supplied pattern.
+     *
+     * @param string $namePattern Pattern of key to match. `'%'` characters should be used as wildcards, and literal
+     *                            `'_'` characters should be escaped.
+     * @param string $value If supplied, options will be deleted only if their value matches this value.
+     */
+    public static function deleteLike($namePattern, $value = null)
+    {
+        return self::getInstance()->deleteNameLike($namePattern, $value);
+    }
+
+    public static function clearCachedOption($name)
+    {
+        self::getInstance()->clearCachedOptionByName($name);
+    }
+
+    /**
+     * Clears the option value cache and forces a reload from the Database.
+     * Used in unit tests to reset the state of the object between tests.
+     *
+     * @return void
+     * @ignore
+     */
+    public static function clearCache()
+    {
+        $option = self::getInstance();
+        $option->loaded = false;
+        $option->all = array();
+    }
+
     /**
      * @var array
      */
@@ -42,7 +134,7 @@ class Option
      *
      * @return \Piwik\Option
      */
-    static public function getInstance()
+    static private function getInstance()
     {
         if (self::$instance == null) {
             self::$instance = new self;
@@ -57,13 +149,14 @@ class Option
     {
     }
 
-    /**
-     * Returns the option value for the requested option $name, fetching from database, if not in cache.
-     *
-     * @param string $name  Key
-     * @return string|bool  Value or false, if not found
-     */
-    public function get($name)
+    protected function clearCachedOptionByName($name)
+    {
+        if (isset($this->all[$name])) {
+            unset($this->all[$name]);
+        }
+    }
+
+    protected function getValue($name)
     {
         $this->autoload();
         if (isset($this->all[$name])) {
@@ -79,30 +172,17 @@ class Option
         return $value;
     }
 
-    /**
-     * Sets the option value in the database and cache
-     *
-     * @param string $name
-     * @param string $value
-     * @param int $autoLoad  if set to 1, this option value will be automatically loaded; should be set to 1 for options that will always be used in the Piwik request.
-     */
-    public function set($name, $value, $autoLoad = 0)
+    protected function setValue($name, $value, $autoLoad = 0)
     {
         $autoLoad = (int)$autoLoad;
         Db::query('INSERT INTO `' . Common::prefixTable('option') . '` (option_name, option_value, autoload) ' .
-                ' VALUES (?, ?, ?) ' .
-                ' ON DUPLICATE KEY UPDATE option_value = ?',
+            ' VALUES (?, ?, ?) ' .
+            ' ON DUPLICATE KEY UPDATE option_value = ?',
             array($name, $value, $autoLoad, $value));
         $this->all[$name] = $value;
     }
 
-    /**
-     * Delete key-value pair from database and reload cache.
-     *
-     * @param string $name   Key to match exactly
-     * @param string $value  Optional value
-     */
-    public function delete($name, $value = null)
+    protected function deleteValue($name, $value)
     {
         $sql = 'DELETE FROM `' . Common::prefixTable('option') . '` WHERE option_name = ?';
         $bind[] = $name;
@@ -117,14 +197,7 @@ class Option
         $this->clearCache();
     }
 
-    /**
-     * Delete key-value pair(s) from database and reload cache.
-     * The supplied pattern should use '%' as wildcards, and literal '_' should be escaped.
-     *
-     * @param string $name   Pattern of key to match.
-     * @param string $value  Optional value
-     */
-    public function deleteLike($name, $value = null)
+    protected function deleteNameLike($name, $value = null)
     {
         $sql = 'DELETE FROM `' . Common::prefixTable('option') . '` WHERE option_name LIKE ?';
         $bind[] = $name;
@@ -139,12 +212,24 @@ class Option
         $this->clearCache();
     }
 
+    protected function getNameLike($name)
+    {
+        $sql = 'SELECT option_name, option_value FROM ' . Common::prefixTable('option') . ' WHERE option_name LIKE ?';
+        $bind = array($name);
+
+        $result = array();
+        foreach (Db::fetchAll($sql, $bind) as $row) {
+            $result[$row['option_name']] = $row['option_value'];
+        }
+        return $result;
+    }
+
     /**
      * Initialize cache with autoload settings.
      *
      * @return void
      */
-    private function autoload()
+    protected function autoload()
     {
         if ($this->loaded) {
             return;
@@ -158,17 +243,5 @@ class Option
         }
 
         $this->loaded = true;
-    }
-
-    /**
-     * Clears the cache
-     * Used in unit tests to reset the state of the object between tests
-     *
-     * @return void
-     */
-    public function clearCache()
-    {
-        $this->loaded = false;
-        $this->all = array();
     }
 }

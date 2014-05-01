@@ -5,24 +5,28 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Piwik
  */
 namespace Piwik\DataTable\Filter;
 
 use Piwik\DataTable;
-use Piwik\DataTable\Filter;
+use Piwik\DataTable\BaseFilter;
 
 /**
- * DataTable filter that will group DataTable rows together based on the results
+ * DataTable filter that will group {@link DataTable} rows together based on the results
  * of a reduce function. Rows with the same reduce result will be summed and merged.
  *
- * NOTE: This filter should never be queued, it must be applied directly on a DataTable.
+ * _NOTE: This filter should never be queued, it must be applied directly on a {@link DataTable}._
  *
- * @package Piwik
- * @subpackage DataTable
+ * **Basic usage example**
+ * 
+ *     // group URLs by host
+ *     $dataTable->filter('GroupBy', array('label', function ($labelUrl) {
+ *         return parse_url($labelUrl, PHP_URL_HOST);
+ *     }));
+ * 
+ * @api
  */
-class GroupBy extends Filter
+class GroupBy extends BaseFilter
 {
     /**
      * The name of the columns to reduce.
@@ -44,10 +48,12 @@ class GroupBy extends Filter
     /**
      * Constructor.
      *
-     * @param DataTable $table           The DataTable to filter.
-     * @param string $groupByColumn   The column name to reduce.
-     * @param mixed $reduceFunction  The reduce function. This must alter the $groupByColumn in some way.
-     * @param array $parameters      Extra parameters to supply to the reduce function.
+     * @param DataTable $table The DataTable to filter.
+     * @param string $groupByColumn The column name to reduce.
+     * @param callable $reduceFunction The reduce function. This must alter the `$groupByColumn`
+     *                                 columng in some way.
+     * @param array $parameters deprecated - use an [anonymous function](http://php.net/manual/en/functions.anonymous.php)
+     *                          instead.
      */
     public function __construct($table, $groupByColumn, $reduceFunction, $parameters = array())
     {
@@ -59,7 +65,7 @@ class GroupBy extends Filter
     }
 
     /**
-     * Applies the reduce function to each row and merges rows w/ the same reduce result.
+     * See {@link GroupBy}.
      *
      * @param DataTable $table
      */
@@ -87,7 +93,7 @@ class GroupBy extends Filter
             } else {
                 // if we have already encountered this group by value, we add this row to the
                 // row that will be kept, and mark this one for deletion
-                $groupByRows[$groupByValue]->sumRow($row, $copyMeta = true, $table->getColumnAggregationOperations());
+                $groupByRows[$groupByValue]->sumRow($row, $copyMeta = true, $table->getMetadata(DataTable::COLUMN_AGGREGATION_OPS_METADATA_NAME));
                 $nonGroupByRowIds[] = $rowId;
             }
         }

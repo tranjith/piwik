@@ -5,19 +5,19 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Updates
  */
+
+namespace Piwik\Updates;
+
 use Piwik\Common;
 use Piwik\Updater;
 use Piwik\Updates;
 
 /**
- * @package Updates
  */
-class Piwik_Updates_1_5_b3 extends Updates
+class Updates_1_5_b3 extends Updates
 {
-    static function getSql($schema = 'Myisam')
+    static function getSql()
     {
         return array(
             'ALTER TABLE `' . Common::prefixTable('log_visit') . '`
@@ -30,7 +30,7 @@ class Piwik_Updates_1_5_b3 extends Updates
 				 CHANGE custom_var_k4 custom_var_k4 VARCHAR(100) DEFAULT NULL,
 				 CHANGE custom_var_v4 custom_var_v4 VARCHAR(100) DEFAULT NULL,
 				 CHANGE custom_var_k5 custom_var_k5 VARCHAR(100) DEFAULT NULL,
-				 CHANGE custom_var_v5 custom_var_v5 VARCHAR(100) DEFAULT NULL'                                                                                    => false,
+				 CHANGE custom_var_v5 custom_var_v5 VARCHAR(100) DEFAULT NULL'                                                                              => false,
             'ALTER TABLE `' . Common::prefixTable('log_conversion') . '`
 				 CHANGE custom_var_k1 custom_var_k1 VARCHAR(100) DEFAULT NULL,
 				 CHANGE custom_var_v1 custom_var_v1 VARCHAR(100) DEFAULT NULL,

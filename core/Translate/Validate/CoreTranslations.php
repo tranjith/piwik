@@ -5,32 +5,28 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Piwik
  */
 
 namespace Piwik\Translate\Validate;
 
-use Piwik\Translate\Validate\ValidateAbstract;
+
 use Piwik\Common;
 
 /**
- * @package Piwik
- * @subpackage Piwik_Translate
  */
 class CoreTranslations extends ValidateAbstract
 {
     /**
      * Error States
      */
-    const ERRORSTATE_MINIMUMTRANSLATIONS        = 'At least 250 translations required';
-    const ERRORSTATE_LOCALEREQUIRED             = 'Locale required';
-    const ERRORSTATE_TRANSLATORINFOREQUIRED     = 'Translator info required';
-    const ERRORSTATE_TRANSLATOREMAILREQUIRED    = 'Translator email required';
-    const ERRORSTATE_LAYOUTDIRECTIONINVALID     = 'Layout direction must be rtl or ltr';
-    const ERRORSTATE_LOCALEINVALID              = 'Locale is invalid';
-    const ERRORSTATE_LOCALEINVALIDLANGUAGE      = 'Locale is invalid - invalid language code';
-    const ERRORSTATE_LOCALEINVALIDCOUNTRY       = 'Locale is invalid - invalid country code';
+    const ERRORSTATE_MINIMUMTRANSLATIONS = 'At least 250 translations required';
+    const ERRORSTATE_LOCALEREQUIRED = 'Locale required';
+    const ERRORSTATE_TRANSLATORINFOREQUIRED = 'Translator info required';
+    const ERRORSTATE_TRANSLATOREMAILREQUIRED = 'Translator email required';
+    const ERRORSTATE_LAYOUTDIRECTIONINVALID = 'Layout direction must be rtl or ltr';
+    const ERRORSTATE_LOCALEINVALID = 'Locale is invalid';
+    const ERRORSTATE_LOCALEINVALIDLANGUAGE = 'Locale is invalid - invalid language code';
+    const ERRORSTATE_LOCALEINVALIDCOUNTRY = 'Locale is invalid - invalid country code';
 
     protected $baseTranslations = array();
 
@@ -39,7 +35,7 @@ class CoreTranslations extends ValidateAbstract
      *
      * @param array $baseTranslations
      */
-    public function __construct($baseTranslations=array())
+    public function __construct($baseTranslations = array())
     {
         $this->baseTranslations = $baseTranslations;
     }
@@ -54,7 +50,6 @@ class CoreTranslations extends ValidateAbstract
      * @param array $translations
      *
      * @return boolean
-     *
      */
     public function isValid($translations)
     {

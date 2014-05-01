@@ -1,6 +1,7 @@
 <?php
 use Piwik\Config;
 use Piwik\Url;
+use Piwik\UrlHelper;
 
 /**
  * Piwik - Open source web analytics
@@ -12,7 +13,6 @@ class UrlTest extends PHPUnit_Framework_TestCase
 {
     /**
      * @group Core
-     * @group Url
      */
     public function testAllMethods()
     {
@@ -59,7 +59,6 @@ class UrlTest extends PHPUnit_Framework_TestCase
     /**
      * @dataProvider getCurrentHosts
      * @group Core
-     * @group Url
      */
     public function testGetCurrentHost($description, $test)
     {
@@ -130,7 +129,6 @@ class UrlTest extends PHPUnit_Framework_TestCase
     /**
      * @dataProvider getLocalUrls
      * @group Core
-     * @group Url
      */
     public function testIsLocalUrl($httphost, $scripturi, $requesturi, $testurl, $result)
     {
@@ -159,7 +157,6 @@ class UrlTest extends PHPUnit_Framework_TestCase
     /**
      * @dataProvider getCurrentUrlWithoutFilename
      * @group Core
-     * @group Url
      */
     public function testGetCurrentUrlWithoutFilename($expected, $https, $host, $path)
     {
@@ -186,7 +183,6 @@ class UrlTest extends PHPUnit_Framework_TestCase
 
     /**
      * @group Core
-     * @group Url
      */
     public function test_getCurrentScriptName()
     {
@@ -244,7 +240,6 @@ class UrlTest extends PHPUnit_Framework_TestCase
     /**
      * @dataProvider getValidHostData
      * @group Core
-     * @group Url
      */
     public function testIsValidHost($expected, $host, $trustedHosts, $description)
     {
@@ -255,17 +250,16 @@ class UrlTest extends PHPUnit_Framework_TestCase
 
     /**
      * @group Core
-     * @group Url
      */
-    public function testGetReferer()
+    public function testGetReferrer()
     {
         $_SERVER['HTTP_REFERER'] = 'http://www.piwik.org';
-        $this->assertEquals('http://www.piwik.org', Url::getReferer());
+        $this->assertEquals('http://www.piwik.org', Url::getReferrer());
     }
 
     /**
      * @group Core
-     * @group Url
+     * 
      * @dataProvider getQueryParameters
      */
     public function testGetQueryStringFromParameters($params, $queryString)

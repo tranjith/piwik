@@ -5,26 +5,27 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik_Plugins
- * @package CustomVariables
  */
 namespace Piwik\Plugins\CustomVariables;
 
 use Piwik\Common;
 use Piwik\Config;
 use Piwik\DataAccess\LogAggregator;
-use Piwik\Metrics;
 use Piwik\DataArray;
-use Piwik\Plugins\CustomVariables\API;
+use Piwik\Metrics;
 use Piwik\Tracker;
-use Piwik\PluginsArchiver;
 use Piwik\Tracker\GoalManager;
 
+require_once PIWIK_INCLUDE_PATH . '/libs/PiwikTracker/PiwikTracker.php';
 
-class Archiver extends PluginsArchiver
+class Archiver extends \Piwik\Plugin\Archiver
 {
     const LABEL_CUSTOM_VALUE_NOT_DEFINED = "Value not defined";
     const CUSTOM_VARIABLE_RECORD_NAME = 'CustomVariables_valueByName';
+
+    // Ecommerce reports use custom variables.
+    // We specifically set the limits high to get accurate Ecommerce reports
+    const MAX_ROWS_WHEN_ECOMMERCE = 50000;
 
     /**
      * @var DataArray
@@ -37,21 +38,35 @@ class Archiver extends PluginsArchiver
     function __construct($processor)
     {
         parent::__construct($processor);
-        $this->maximumRowsInDataTableLevelZero = Config::getInstance()->General['datatable_archiving_maximum_rows_custom_variables'];
-        $this->maximumRowsInSubDataTable = Config::getInstance()->General['datatable_archiving_maximum_rows_subtable_custom_variables'];
+
+        if($processor->getParams()->getSite()->isEcommerceEnabled()) {
+            $this->maximumRowsInDataTableLevelZero = self::MAX_ROWS_WHEN_ECOMMERCE;
+            $this->maximumRowsInSubDataTable = self::MAX_ROWS_WHEN_ECOMMERCE;
+        } else {
+            $this->maximumRowsInDataTableLevelZero = Config::getInstance()->General['datatable_archiving_maximum_rows_custom_variables'];
+            $this->maximumRowsInSubDataTable = Config::getInstance()->General['datatable_archiving_maximum_rows_subtable_custom_variables'];
+        }
     }
 
-    public function archiveDay()
+    public function aggregateMultipleReports()
+    {
+        $this->getProcessor()->aggregateDataTableRecords(
+            self::CUSTOM_VARIABLE_RECORD_NAME, $this->maximumRowsInDataTableLevelZero, $this->maximumRowsInSubDataTable,
+            $columnToSort = Metrics::INDEX_NB_VISITS);
+    }
+
+    public function aggregateDayReport()
     {
         $this->dataArray = new DataArray();
 
-        for ($i = 1; $i <= Tracker::MAX_CUSTOM_VARIABLES; $i++) {
+        $maxCustomVariables = CustomVariables::getMaxCustomVariables();
+        for ($i = 1; $i <= $maxCustomVariables; $i++) {
             $this->aggregateCustomVariable($i);
         }
 
         $this->removeVisitsMetricsFromActionsAggregate();
         $this->dataArray->enrichMetricsWithConversions();
-        $table = $this->getProcessor()->getDataTableFromDataArray($this->dataArray);
+        $table = $this->dataArray->asDataTable();
         $blob = $table->getSerialized(
             $this->maximumRowsInDataTableLevelZero, $this->maximumRowsInSubDataTable,
             $columnToSort = Metrics::INDEX_NB_VISITS
@@ -73,8 +88,8 @@ class Archiver extends PluginsArchiver
         // IF we query Custom Variables scope "page" either: Product SKU, Product Name,
         // then we also query the "Product page view" price which was possibly recorded.
         $additionalSelects = false;
-        // FIXMEA
-        if (in_array($slot, array(3, 4, 5))) {
+
+        if (in_array($slot, array(\PiwikTracker::CVAR_INDEX_ECOMMERCE_ITEM_SKU, \PiwikTracker::CVAR_INDEX_ECOMMERCE_ITEM_NAME, \PiwikTracker::CVAR_INDEX_ECOMMERCE_ITEM_CATEGORY))) {
             $additionalSelects = array($this->getSelectAveragePrice());
         }
         $query = $this->getLogAggregator()->queryActionsByDimension($dimensions, $where, $additionalSelects);
@@ -86,8 +101,8 @@ class Archiver extends PluginsArchiver
 
     protected function getSelectAveragePrice()
     {
-        return LogAggregator::getSqlRevenue("AVG(log_link_visit_action.custom_var_v2)")
-            . " as `" . Metrics::INDEX_ECOMMERCE_ITEM_PRICE_VIEWED . "`";
+        $field = "custom_var_v" . \PiwikTracker::CVAR_INDEX_ECOMMERCE_ITEM_PRICE;
+        return LogAggregator::getSqlRevenue("AVG(log_link_visit_action." . $field . ")") . " as `" . Metrics::INDEX_ECOMMERCE_ITEM_PRICE_VIEWED . "`";
     }
 
     protected function aggregateFromVisits($query, $keyField, $valueField)
@@ -202,10 +217,4 @@ class Archiver extends PluginsArchiver
         }
     }
 
-    public function archivePeriod()
-    {
-        $nameToCount = $this->getProcessor()->aggregateDataTableReports(
-            self::CUSTOM_VARIABLE_RECORD_NAME, $this->maximumRowsInDataTableLevelZero, $this->maximumRowsInSubDataTable,
-            $columnToSort = Metrics::INDEX_NB_VISITS);
-    }
 }

@@ -5,23 +5,23 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik
- * @package Piwik
  */
 namespace Piwik\DataTable\Filter;
 
 use Piwik\DataTable;
-use Piwik\DataTable\Filter;
+use Piwik\DataTable\BaseFilter;
 
 /**
- * Delete all rows for which the given $columnToFilter do not contain the $patternToSearch
- * This filter is to be used on columns containing strings.
- * Example: from the keyword report, keep only the rows for which the label contains "piwik"
+ * Deletes every row for which a specific column does not match a supplied regex pattern.
+ * 
+ * **Example**
+ * 
+ *     // filter out all rows whose labels doesn't start with piwik
+ *     $dataTable->filter('Pattern', array('label', '^piwik'));
  *
- * @package Piwik
- * @subpackage DataTable
+ * @api
  */
-class Pattern extends Filter
+class Pattern extends BaseFilter
 {
     private $columnToFilter;
     private $patternToSearch;
@@ -29,10 +29,13 @@ class Pattern extends Filter
     private $invertedMatch;
 
     /**
-     * @param DataTable $table
-     * @param string $columnToFilter
-     * @param string $patternToSearch
-     * @param bool $invertedMatch
+     * Constructor.
+     * 
+     * @param DataTable $table The table to eventually filter.
+     * @param string $columnToFilter The column to match with the `$patternToSearch` pattern.
+     * @param string $patternToSearch The regex pattern to use.
+     * @param bool $invertedMatch Whether to invert the pattern or not. If true, will remove
+     *                            rows if they match the pattern.
      */
     public function __construct($table, $columnToFilter, $patternToSearch, $invertedMatch = false)
     {
@@ -48,6 +51,7 @@ class Pattern extends Filter
      *
      * @param string $pattern
      * @return string
+     * @ignore
      */
     static public function getPatternQuoted($pattern)
     {
@@ -57,18 +61,20 @@ class Pattern extends Filter
     /**
      * Performs case insensitive match
      *
-     * @param string $pattern
      * @param string $patternQuoted
      * @param string $string
      * @param bool $invertedMatch
      * @return int
+     * @ignore
      */
-    static public function match($pattern, $patternQuoted, $string, $invertedMatch)
+    static public function match($patternQuoted, $string, $invertedMatch = false)
     {
-        return @preg_match($patternQuoted . "i", $string) == 1 ^ $invertedMatch;
+        return preg_match($patternQuoted . "i", $string) == 1 ^ $invertedMatch;
     }
 
     /**
+     * See {@link Pattern}.
+     * 
      * @param DataTable $table
      */
     public function filter($table)
@@ -82,7 +88,7 @@ class Pattern extends Filter
             if ($value === false) {
                 $value = $row->getMetadata($this->columnToFilter);
             }
-            if (!self::match($this->patternToSearch, $this->patternToSearchQuoted, $value, $this->invertedMatch)) {
+            if (!self::match($this->patternToSearchQuoted, $value, $this->invertedMatch)) {
                 $table->deleteRow($key);
             }
         }

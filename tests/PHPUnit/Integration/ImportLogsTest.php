@@ -18,7 +18,6 @@ class Test_Piwik_Integration_ImportLogs extends IntegrationTestCase
     /**
      * @dataProvider getApiForTesting
      * @group        Integration
-     * @group        ImportLogs
      */
     public function testApi($api, $params)
     {
@@ -27,10 +26,17 @@ class Test_Piwik_Integration_ImportLogs extends IntegrationTestCase
 
     public function getApiForTesting()
     {
-        return array(
+        $apis = array(
             array('all', array('idSite'  => self::$fixture->idSite,
                                'date'    => '2012-08-09',
                                'periods' => 'month')),
+
+            array('MultiSites.getAll', array('idSite'   => self::$fixture->idSite,
+                                             'date'     => '2012-08-09',
+                                             'periods'  => array('month'),
+                                             'setDateLastN' => true,
+                                             'otherRequestParameters' => array('enhanced' => 1),
+                                             'testSuffix' => '_withEnhancedAndLast7')),
 
             // report generated from custom log format including generation time
             array('Actions.getPageUrls', array('idSite'  => self::$fixture->idSite,
@@ -42,11 +48,28 @@ class Test_Piwik_Integration_ImportLogs extends IntegrationTestCase
                                              'periods'    => 'month',
                                              'testSuffix' => '_siteIdTwo_TrackedUsingLogReplay')),
         );
+
+        // Running a few interesting tests for Log Replay use case
+        if (getenv('MYSQL_ADAPTER') != 'MYSQLI') { // Mysqli rounds latitude/longitude
+            $apiMethods = array('Live.getLastVisitsDetails',
+                                'Actions',
+                                'VisitorInterest',
+                                'VisitFrequency'
+            );
+            $apis[] = array($apiMethods, array(
+                'idSite'  => self::$fixture->idSite,
+                'date'    => '2012-08-09,2014-04-01',
+                'periods' => 'range',
+                'otherRequestParameters' => array(
+                    'filter_limit' => 1000
+            )));
+        }
+        return $apis;
     }
 
     /**
      * @group        Integration
-     * @group        ImportLogs
+     *
      * 
      * NOTE: This test must be last since the new sites that get added are added in
      *       random order.
@@ -56,7 +79,7 @@ class Test_Piwik_Integration_ImportLogs extends IntegrationTestCase
         self::$fixture->logVisitsWithDynamicResolver();
 
         // reload access so new sites are viewable
-        Access::getInstance()->setSuperUser(true);
+        Access::getInstance()->setSuperUserAccess(true);
 
         // make sure sites aren't created twice
         $piwikDotNet = API::getInstance()->getSitesIdFromSiteUrl('http://piwik.net');

@@ -5,18 +5,15 @@
  * @link http://piwik.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
- * @category Piwik_Plugins
- * @package VisitorInterest
  */
 
 namespace Piwik\Plugins\VisitorInterest;
 
 use Piwik\DataAccess\LogAggregator;
-use Piwik\Metrics;
 use Piwik\DataTable;
-use Piwik\PluginsArchiver;
+use Piwik\Metrics;
 
-class Archiver extends PluginsArchiver
+class Archiver extends \Piwik\Plugin\Archiver
 {
     // third element is unit (s for seconds, default is munutes)
     const TIME_SPENT_RECORD_NAME = 'VisitorInterest_timeGap';
@@ -87,7 +84,7 @@ class Archiver extends PluginsArchiver
         array(364)
     );
 
-    public function archiveDay()
+    public function aggregateDayReport()
     {
         // these prefixes are prepended to the 'SELECT as' parts of each SELECT expression. detecting
         // these prefixes allows us to get all the data in one query.
@@ -98,19 +95,22 @@ class Archiver extends PluginsArchiver
             self::DAYS_SINCE_LAST_RECORD_NAME => 'dslv',
         );
 
-        $aggregatesMetadata = array(
-            array('visit_total_time', self::getSecondsGap(), 'log_visit', $prefixes[self::TIME_SPENT_RECORD_NAME]),
-            array('visit_total_actions', self::$pageGap, 'log_visit', $prefixes[self::PAGES_VIEWED_RECORD_NAME]),
-            array('visitor_count_visits', self::$visitNumberGap, 'log_visit', $prefixes[self::VISITS_COUNT_RECORD_NAME]),
-            array('visitor_days_since_last', self::$daysSinceLastVisitGap, 'log_visit', $prefixes[self::DAYS_SINCE_LAST_RECORD_NAME],
-                  $restrictToReturningVisitors = true
-            ),
-        );
+        // collect our extra aggregate select fields
         $selects = array();
-        foreach ($aggregatesMetadata as $aggregateMetadata) {
-            $selectsFromRangedColumn = LogAggregator::getSelectsFromRangedColumn($aggregateMetadata);
-            $selects = array_merge($selects, $selectsFromRangedColumn);
-        }
+        $selects = array_merge($selects, LogAggregator::getSelectsFromRangedColumn(
+            'visit_total_time', self::getSecondsGap(), 'log_visit', $prefixes[self::TIME_SPENT_RECORD_NAME]
+        ));
+        $selects = array_merge($selects, LogAggregator::getSelectsFromRangedColumn(
+            'visit_total_actions', self::$pageGap, 'log_visit', $prefixes[self::PAGES_VIEWED_RECORD_NAME]
+        ));
+        $selects = array_merge($selects, LogAggregator::getSelectsFromRangedColumn(
+            'visitor_count_visits', self::$visitNumberGap, 'log_visit', $prefixes[self::VISITS_COUNT_RECORD_NAME]
+        ));
+        $selects = array_merge($selects, LogAggregator::getSelectsFromRangedColumn(
+            'visitor_days_since_last', self::$daysSinceLastVisitGap, 'log_visit', $prefixes[self::DAYS_SINCE_LAST_RECORD_NAME],
+            $restrictToReturningVisitors = true
+        ));
+
         $query = $this->getLogAggregator()->queryVisitsByDimension(array(), $where = false, $selects, array());
         $row = $query->fetch();
         foreach ($prefixes as $recordName => $selectAsPrefix) {
@@ -118,6 +118,17 @@ class Archiver extends PluginsArchiver
             $dataTable = DataTable::makeFromIndexedArray($cleanRow);
             $this->getProcessor()->insertBlobRecord($recordName, $dataTable->getSerialized());
         }
+    }
+
+    public function aggregateMultipleReports()
+    {
+        $dataTableRecords = array(
+            self::TIME_SPENT_RECORD_NAME,
+            self::PAGES_VIEWED_RECORD_NAME,
+            self::VISITS_COUNT_RECORD_NAME,
+            self::DAYS_SINCE_LAST_RECORD_NAME
+        );
+        $this->getProcessor()->aggregateDataTableRecords($dataTableRecords);
     }
 
     /**
@@ -140,14 +151,4 @@ class Archiver extends PluginsArchiver
         return $secondsGap;
     }
 
-    public function archivePeriod()
-    {
-        $dataTableToSum = array(
-            self::TIME_SPENT_RECORD_NAME,
-            self::PAGES_VIEWED_RECORD_NAME,
-            self::VISITS_COUNT_RECORD_NAME,
-            self::DAYS_SINCE_LAST_RECORD_NAME
-        );
-        $this->getProcessor()->aggregateDataTableReports($dataTableToSum);
-    }
 }
